@@ -1,0 +1,4 @@
+#Wed Mar 04 12:35:55 CET 2026
+base.0=E\:\\GymTrackerV3\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeProjectDexDebugAndroidTest\\0\\classes.dex
+path.0=0/classes.dex
+renamed.0=classes.dex
