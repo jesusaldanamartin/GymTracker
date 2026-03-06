@@ -21,7 +21,6 @@
         android:extractNativeLibs="false"
         android:label="GymTracker"
         android:supportsRtl="true"
-        android:testOnly="true"
         android:theme="@style/Theme.GymTracker" >
         <activity
             android:name="com.gymtracker.MainActivity"

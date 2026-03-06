@@ -5635,25 +5635,6 @@
                     }
                 },
                 {
-                    "source": "E:\\GymTrackerV3\\app\\src\\main\\res\\values\\themes.xml",
-                    "from": {
-                        "startLines": "2",
-                        "startColumns": "4",
-                        "startOffsets": "55",
-                        "endLines": "6",
-                        "endColumns": "12",
-                        "endOffsets": "319"
-                    },
-                    "to": {
-                        "startLines": "1829",
-                        "startColumns": "4",
-                        "startOffsets": "121349",
-                        "endLines": "1833",
-                        "endColumns": "12",
-                        "endOffsets": "121613"
-                    }
-                },
-                {
                     "source": "C:\\Users\\Superjesus\\.gradle\\caches\\9.0.0\\transforms\\ebe7c062517139f822933d9dd9c61794\\transformed\\material3-release\\res\\values\\values.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9,10,11,12,15,16,17,18,19,20,21,22,23,24,25,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,74",
@@ -5831,6 +5812,25 @@
                         "startOffsets": "17474",
                         "endColumns": "42",
                         "endOffsets": "17512"
+                    }
+                },
+                {
+                    "source": "E:\\GymTracker\\app\\src\\main\\res\\values\\themes.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "6",
+                        "endColumns": "12",
+                        "endOffsets": "319"
+                    },
+                    "to": {
+                        "startLines": "1829",
+                        "startColumns": "4",
+                        "startOffsets": "121349",
+                        "endLines": "1833",
+                        "endColumns": "12",
+                        "endOffsets": "121613"
                     }
                 }
             ]

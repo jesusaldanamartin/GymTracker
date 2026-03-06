@@ -1,12 +1,20 @@
 package com.gymtracker
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -47,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -58,9 +67,11 @@ import androidx.navigation.compose.rememberNavController
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,8 +85,8 @@ data class Exercise(
     val routine: String,
     val emoji: String,
     val color: Color,
-    // CAMBIO 3: true = ejercicio de fuerza (usa E1RM), false = hipertrofia (usa reps×peso)
-    val isStrengthFocus: Boolean = false
+    val isStrengthFocus: Boolean = false,
+    val isCustom: Boolean = false
 )
 
 data class WorkoutSet(
@@ -90,131 +101,154 @@ data class Session(
     val sets: List<WorkoutSet>
 )
 
-// E1RM Epley formula: weight × (1 + reps/30)
 fun estimatedOneRM(weightKg: Float, reps: Int): Float {
-    if (weightKg == 0f) return 0f
+    if (weightKg == 0f || reps == 0) return 0f
     return weightKg * (1f + reps / 30f)
 }
 
-// Best E1RM from a list of sets (best single set)
 fun bestE1RM(sets: List<WorkoutSet>): Float =
     sets.maxOfOrNull { estimatedOneRM(it.weightKg, it.reps) } ?: 0f
 
-// CAMBIO 3: Métrica de progreso para ejercicios de hipertrofia = mejor set (reps × peso)
 fun bestHypertrophyScore(sets: List<WorkoutSet>): Float =
     sets.maxOfOrNull { it.reps * it.weightKg } ?: 0f
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SEED DATA
-// ─────────────────────────────────────────────────────────────────────────────
-
-val EXERCISES = listOf(
-    // CAMBIO 3: Press Banca = fuerza (isStrengthFocus = true)
-    Exercise(1,  "Press Banca",             "Pecho",   "Push",   "💪", Color(0xFFFF6B6B), isStrengthFocus = true),
-    Exercise(2,  "Press Inclinado",         "Pecho",   "Push",   "💪", Color(0xFFFF6B6B), isStrengthFocus = true),
-    Exercise(2,  "Press Inclinado Manc.",   "Pecho",   "Push",   "💪", Color(0xFFFF6B6B), isStrengthFocus = true),
-
-    Exercise(31, "Aperturas Cable",     "Pecho",   "Push",   "💪", Color(0xFFFF6B6B)),
-    Exercise(3,  "Peck Deck",           "Pecho",   "Push",   "💪", Color(0xFFFF6B6B)),
-    Exercise(4,  "Fondos",              "Pecho",   "Push",   "💪", Color(0xFFFF6B6B)),
-
-    Exercise(5,  "Press Militar",       "Hombros", "Push",   "🏋️", Color(0xFFFFBE0B), isStrengthFocus = true),
-    Exercise(6,  "Elevaciones Lat.",    "Hombros", "Push",   "🏋️", Color(0xFFFFBE0B)),
-    Exercise(7,  "Reversed Peck Deck",  "Hombros", "Pull",   "🏋️", Color(0xFFFFBE0B)),
-    Exercise(17, "Facepull",            "Hombros", "Pull",   "🎯", Color(0xFFFFBE0B)),
-
-    Exercise(8,  "Extensiones Triceps",       "Triceps", "Push",   "💪", Color(0xFF8338EC)),
-    Exercise(9,  "Extensiones Katana",        "Triceps", "Push",   "💪", Color(0xFF8338EC)),
-    Exercise(32, "Extensiones Unilateral",    "Triceps", "Push",   "💪", Color(0xFF8338EC)),
-    Exercise(33, "Extensiones sobre cabeza",  "Triceps", "Push",   "💪", Color(0xFF8338EC)),
-
-    Exercise(10, "Dominadas",                    "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
-    Exercise(11, "Remo en T",                    "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
-    Exercise(12, "Jalón al Pecho",               "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
-    Exercise(13, "Remo en Máquina Unilateral",   "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
-    Exercise(34, "Remo en Polea Unilateral",     "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
-    Exercise(35, "Pull Over",                    "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
-
-    Exercise(14, "Curl Biceps Unilateral",  "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
-    Exercise(15, "Curl Martillo",           "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
-    Exercise(16, "Curl Bayesian",           "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
-    Exercise(36, "Curl Predicador",         "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
-
-    Exercise(18, "Sentadilla Libre",        "Piernas", "Legs",   "🦵", Color(0xFFFF006E), isStrengthFocus = true),
-    Exercise(23, "Sentadilla MultiPower",   "Piernas", "Legs",   "🦵", Color(0xFFFF006E), isStrengthFocus = true),
-    Exercise(37, "Peso Muerto",         "Piernas", "Legs",   "🦵", Color(0xFFFF006E), isStrengthFocus = true),
-    Exercise(38, "Peso Muerto Sumo",    "Piernas", "Legs",   "🦵", Color(0xFFFF006E), isStrengthFocus = true),
-    Exercise(39, "Peso Muerto Rumano",  "Piernas", "Legs",   "🦵", Color(0xFFFF006E), isStrengthFocus = true),
-
-    Exercise(19, "Prensa de Piernas",   "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
-    Exercise(20, "Extensiones Cuad.",   "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
-    Exercise(21, "Curl Femoral",        "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
-    Exercise(22, "Hip Thrust",          "Gluteos", "Legs",   "🍑", Color(0xFFFB5607)),
-    Exercise(24, "Gemelos de Pie",      "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
-    Exercise(40, "Aducciones",          "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
-    Exercise(41, "Abducciones",         "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
-
-    Exercise(25, "Elevaciones de piernas",             "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
-    Exercise(26, "Crunch Polea",        "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
-    Exercise(27, "Rueda Abdominal",     "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
-    Exercise(28, "Cinta de Correr",     "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
-    Exercise(29, "Bicicleta Est.",      "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
-    Exercise(30, "Remo Ergómetro",      "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
-    Exercise(42, "Máquina de Escalera",      "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
-
-    )
-
-val MUSCLES  = listOf("Todos","Pecho","Hombros","Triceps","Espalda","Biceps","Piernas","Gluteos","Core","Cardio")
-val ROUTINES = listOf("Todas","Push","Pull","Legs","Full","Cardio")
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COLORS
 // ─────────────────────────────────────────────────────────────────────────────
 
-val Black    = Color(0xFF000000)
-val DarkSurf = Color(0xFF1C1C1E)
-val CardBg   = Color(0xFF242426)
-val Border   = Color(0xFF2C2C2E)
-val Accent   = Color(0xFFE8FF47)
-val TextPrim = Color(0xFFF5F5F5)
-val TextSec  = Color(0xFF8E8E93)
-val TextTert = Color(0xFF48484A)
-val GreenOk  = Color(0xFF30D158)
-val YellowWarn = Color(0xFFFFD60A)
-val RedBad   = Color(0xFFFF453A)
+val Black        = Color(0xFF000000)
+val Surface0     = Color(0xFF0A0A0A)
+val Surface1     = Color(0xFF141414)
+val Surface2     = Color(0xFF1E1E20)
+val Surface3     = Color(0xFF28282C)
+val Border       = Color(0xFF2C2C2E)
+val BorderLight  = Color(0xFF3A3A3C)
+val Accent       = Color(0xFFE8FF47)
+val AccentMuted  = Color(0xFF9CAA2E)
+val TextPrim     = Color(0xFFF2F2F7)
+val TextSec      = Color(0xFF8E8E93)
+val TextTert     = Color(0xFF48484A)
+val GreenOk      = Color(0xFF30D158)
+val YellowWarn   = Color(0xFFFFD60A)
+val RedBad       = Color(0xFFFF453A)
+val OrangeStk    = Color(0xFFFF9500)
+val Blue         = Color(0xFF0A84FF)
+
+val MUSCLE_COLORS = mapOf(
+    "Pecho"    to Color(0xFFFD2D87),
+    "Hombros"  to Color(0xFFFFBE0B),
+    "Triceps"  to Color(0xFF8338EC),
+    "Espalda"  to Color(0xFF4ECDC4),
+    "Biceps"   to Color(0xFF3A86FF),
+    "Piernas"  to Color(0xFFFF006E),
+    "Gluteos"  to Color(0xFFFB5607),
+    "Core"     to Color(0xFF06D6A0),
+    "Cardio"   to Color(0xFFE63946)
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEED DATA
+// ─────────────────────────────────────────────────────────────────────────────
+
+val SEED_EXERCISES = listOf(
+    Exercise(1,  "Press Banca",               "Pecho",   "Push",   "💪", Color(0xFFFF6B6B), true),
+    Exercise(2,  "Press Inclinado",           "Pecho",   "Push",   "💪", Color(0xFFFF6B6B), true),
+    Exercise(42, "Press Inclinado Manc.",     "Pecho",   "Push",   "💪", Color(0xFFFF6B6B), true),
+    Exercise(31, "Aperturas Cable",           "Pecho",   "Push",   "💪", Color(0xFFFF6B6B)),
+    Exercise(3,  "Peck Deck",                 "Pecho",   "Push",   "💪", Color(0xFFFF6B6B)),
+    Exercise(4,  "Fondos",                    "Pecho",   "Push",   "💪", Color(0xFFFF6B6B)),
+    Exercise(5,  "Press Militar",             "Hombros", "Push",   "🏋️", Color(0xFFFFBE0B), true),
+    Exercise(6,  "Elevaciones Lat.",          "Hombros", "Push",   "🏋️", Color(0xFFFFBE0B)),
+    Exercise(7,  "Reversed Peck Deck",        "Hombros", "Pull",   "🏋️", Color(0xFFFFBE0B)),
+    Exercise(17, "Facepull",                  "Hombros", "Pull",   "🎯", Color(0xFFFFBE0B)),
+    Exercise(8,  "Extensiones Triceps",       "Triceps", "Push",   "💪", Color(0xFF8338EC)),
+    Exercise(9,  "Extensiones Katana",        "Triceps", "Push",   "💪", Color(0xFF8338EC)),
+    Exercise(32, "Extensiones Unilateral",    "Triceps", "Push",   "💪", Color(0xFF8338EC)),
+    Exercise(33, "Extensiones sobre cabeza",  "Triceps", "Push",   "💪", Color(0xFF8338EC)),
+    Exercise(10, "Dominadas",                 "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
+    Exercise(11, "Remo en T",                 "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
+    Exercise(12, "Jalón al Pecho",            "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
+    Exercise(13, "Remo Máquina Unilateral",   "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
+    Exercise(34, "Remo Polea Unilateral",     "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
+    Exercise(35, "Pull Over",                 "Espalda", "Pull",   "🔙", Color(0xFF4ECDC4)),
+    Exercise(14, "Curl Bíceps Unilateral",    "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
+    Exercise(15, "Curl Martillo",             "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
+    Exercise(16, "Curl Bayesian",             "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
+    Exercise(36, "Curl Predicador",           "Biceps",  "Pull",   "💪", Color(0xFF3A86FF)),
+    Exercise(18, "Sentadilla Libre",          "Piernas", "Legs",   "🦵", Color(0xFFFF006E), true),
+    Exercise(23, "Sentadilla MultiPower",     "Piernas", "Legs",   "🦵", Color(0xFFFF006E), true),
+    Exercise(37, "Peso Muerto",               "Piernas", "Legs",   "🦵", Color(0xFFFF006E), true),
+    Exercise(38, "Peso Muerto Sumo",          "Piernas", "Legs",   "🦵", Color(0xFFFF006E), true),
+    Exercise(39, "Peso Muerto Rumano",        "Piernas", "Legs",   "🦵", Color(0xFFFF006E), true),
+    Exercise(19, "Prensa de Piernas",         "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
+    Exercise(20, "Extensiones Cuad.",         "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
+    Exercise(21, "Curl Femoral",              "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
+    Exercise(22, "Hip Thrust",                "Gluteos", "Legs",   "🍑", Color(0xFFFB5607)),
+    Exercise(24, "Gemelos de Pie",            "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
+    Exercise(40, "Aducciones",                "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
+    Exercise(41, "Abducciones",               "Piernas", "Legs",   "🦵", Color(0xFFFF006E)),
+    Exercise(25, "Elevaciones de piernas",    "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
+    Exercise(26, "Crunch Polea",              "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
+    Exercise(27, "Rueda Abdominal",           "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
+    Exercise(28, "Cinta de Correr",           "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
+    Exercise(29, "Bicicleta Est.",            "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
+    Exercise(30, "Remo Ergómetro",            "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
+    Exercise(43, "Máquina de Escalera",       "Cardio",  "Cardio", "❤️", Color(0xFFE63946)),
+)
+
+val MUSCLES  = listOf("Todos","Pecho","Hombros","Triceps","Espalda","Biceps","Piernas","Gluteos","Core","Cardio")
+val ROUTINES = listOf("Todas","Push","Pull","Legs","Full","Cardio")
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WEEK HELPERS  — semana Lun-Dom, se resetea cada lunes
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Lunes de la semana actual */
+fun currentWeekMonday(): LocalDate =
+    LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+/** Domingo de la semana actual */
+fun currentWeekSunday(): LocalDate =
+    LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+
+/** Días de la semana actual (Lun–Dom) como strings "yyyy-MM-dd" */
+fun currentWeekDates(): List<String> {
+    val monday = currentWeekMonday()
+    return (0..6).map { monday.plusDays(it.toLong()).toString() }
+}
+
+data class WeekStats(
+    val daysTrainedThisWeek: Int,   // días distintos con sesión
+    val sessionsThisWeek: Int,      // número de sesiones (puede ser == días si 1 sesión/día)
+    val setsThisWeek: Int,
+    val repsThisWeek: Int,
+    val volumeThisWeek: Long        // kg total
+)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PERSISTENCE
 // ─────────────────────────────────────────────────────────────────────────────
 
 object Storage {
-    private const val PREFS = "gym_data"
-    private const val KEY   = "sessions"
+    private const val PREFS         = "gym_data"
+    private const val KEY_SESSIONS  = "sessions_v3"
+    private const val KEY_CUSTOM_EX = "custom_exercises"
 
     fun save(context: Context, sessions: List<Session>) {
         val arr = JSONArray()
         for (s in sessions) {
             val setsArr = JSONArray()
-            for (ws in s.sets) {
-                setsArr.put(JSONObject().apply {
-                    put("eid",    ws.exerciseId)
-                    put("ename",  ws.exerciseName)
-                    put("reps",   ws.reps)
-                    put("weight", ws.weightKg.toDouble())
-                })
-            }
-            arr.put(JSONObject().apply {
-                put("date", s.date)
-                put("sets", setsArr)
+            for (ws in s.sets) setsArr.put(JSONObject().apply {
+                put("eid", ws.exerciseId); put("ename", ws.exerciseName)
+                put("reps", ws.reps); put("weight", ws.weightKg.toDouble())
             })
+            arr.put(JSONObject().apply { put("date", s.date); put("sets", setsArr) })
         }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(KEY, arr.toString()).apply()
+        prefs(context).edit().putString(KEY_SESSIONS, arr.toString()).apply()
     }
 
     fun load(context: Context): List<Session> {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY, null) ?: return emptyList()
+        val raw = prefs(context).getString(KEY_SESSIONS, null) ?: return emptyList()
         return try {
             val arr = JSONArray(raw)
             (0 until arr.length()).map { i ->
@@ -230,31 +264,72 @@ object Storage {
         } catch (e: Exception) { emptyList() }
     }
 
-    // CAMBIO 2: exportCSV movido aquí, misma lógica pero ahora incluye columna "tipo"
-    fun exportCSV(context: Context, sessions: List<Session>): Uri? {
+    fun saveCustomExercises(context: Context, list: List<Exercise>) {
+        val arr = JSONArray()
+        list.filter { it.isCustom }.forEach { ex ->
+            arr.put(JSONObject().apply {
+                put("id", ex.id); put("name", ex.name); put("muscle", ex.muscle)
+                put("routine", ex.routine); put("emoji", ex.emoji); put("strength", ex.isStrengthFocus)
+            })
+        }
+        prefs(context).edit().putString(KEY_CUSTOM_EX, arr.toString()).apply()
+    }
+
+    fun loadCustomExercises(context: Context): List<Exercise> {
+        val raw = prefs(context).getString(KEY_CUSTOM_EX, null) ?: return emptyList()
         return try {
-            val sb = StringBuilder()
-            sb.appendLine("fecha,ejercicio,musculo,rutina,tipo,serie,reps,peso_kg,e1rm,score_hipertrofia")
-            sessions.sortedBy { it.date }.forEach { session ->
-                session.sets.groupBy { it.exerciseName }.forEach { (_, exSets) ->
-                    exSets.forEachIndexed { idx, set ->
-                        val ex = EXERCISES.find { it.id == set.exerciseId }
-                        val e1rm = if (ex?.isStrengthFocus == true)
-                            String.format("%.1f", estimatedOneRM(set.weightKg, set.reps))
-                        else ""
-                        val hyScore = if (ex?.isStrengthFocus == false)
-                            String.format("%.1f", set.reps * set.weightKg)
-                        else ""
-                        val tipo = if (ex?.isStrengthFocus == true) "fuerza" else "hipertrofia"
-                        sb.appendLine("${session.date},${set.exerciseName},${ex?.muscle ?: ""},${ex?.routine ?: ""},$tipo,${idx + 1},${set.reps},${set.weightKg},$e1rm,$hyScore")
-                    }
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i); val muscle = o.getString("muscle")
+                Exercise(o.getInt("id"), o.getString("name"), muscle, o.getString("routine"),
+                    o.getString("emoji"), MUSCLE_COLORS[muscle] ?: Color(0xFF8E8E93),
+                    o.getBoolean("strength"), isCustom = true)
+            }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    fun exportToDownloads(context: Context, sessions: List<Session>, allEx: List<Exercise>): String? = try {
+        val name = "gymtracker_${LocalDate.now()}.csv"
+        val csv  = buildCSV(sessions, allEx)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, name)
+                put(MediaStore.Downloads.MIME_TYPE, "text/csv")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            uri?.let { context.contentResolver.openOutputStream(it)?.use { os -> os.write(csv.toByteArray()) } }
+            name
+        } else {
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            dir.mkdirs(); File(dir, name).writeText(csv); name
+        }
+    } catch (e: Exception) { null }
+
+    fun exportForShare(context: Context, sessions: List<Session>, allEx: List<Exercise>): android.net.Uri? = try {
+        val file = File(context.cacheDir, "gymtracker_export.csv")
+        file.writeText(buildCSV(sessions, allEx))
+        FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+    } catch (e: Exception) { null }
+
+    private fun buildCSV(sessions: List<Session>, allEx: List<Exercise>): String {
+        val sb = StringBuilder()
+        sb.appendLine("fecha,ejercicio,musculo,rutina,tipo,serie,reps,peso_kg,e1rm,score_hipertrofia")
+        sessions.sortedBy { it.date }.forEach { s ->
+            s.sets.groupBy { it.exerciseName }.forEach { (_, exSets) ->
+                exSets.forEachIndexed { idx, set ->
+                    val ex   = allEx.find { it.id == set.exerciseId }
+                    val e1rm = if (ex?.isStrengthFocus == true) "%.1f".format(estimatedOneRM(set.weightKg, set.reps)) else ""
+                    val hy   = if (ex?.isStrengthFocus == false) "%.1f".format(set.reps * set.weightKg) else ""
+                    val tipo = if (ex?.isStrengthFocus == true) "fuerza" else "hipertrofia"
+                    sb.appendLine("${s.date},\"${set.exerciseName}\",${ex?.muscle ?: ""},${ex?.routine ?: ""},$tipo,${idx+1},${set.reps},${set.weightKg},$e1rm,$hy")
                 }
             }
-            val file = File(context.cacheDir, "gymtracker_export.csv")
-            file.writeText(sb.toString())
-            FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-        } catch (e: Exception) { null }
+        }
+        return sb.toString()
     }
+
+    private fun prefs(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -265,8 +340,7 @@ enum class TrendState { PROGRESSING, STAGNANT, FATIGUE }
 
 data class ExerciseTrend(
     val exercise: Exercise,
-    // CAMBIO 3: métrica principal según tipo de ejercicio
-    val latestMetric: Float,      // E1RM si fuerza, mejor reps×peso si hipertrofia
+    val latestMetric: Float,
     val avgLast5Metric: Float,
     val pctChange: Float,
     val trend: TrendState,
@@ -276,32 +350,33 @@ data class ExerciseTrend(
 
 class GymViewModel : ViewModel() {
 
-    var sets = mutableStateListOf<WorkoutSet>()
-        private set
+    var sets            = mutableStateListOf<WorkoutSet>();  private set
+    var savedSessions   = mutableStateListOf<Session>();     private set
+    var customExercises = mutableStateListOf<Exercise>();    private set
 
-    var savedSessions = mutableStateListOf<Session>()
-        private set
+    val allExercises: List<Exercise> get() = SEED_EXERCISES + customExercises
 
-    var muscleFilter  by mutableStateOf("Todos")
-    var routineFilter by mutableStateOf("Todas")
-    var filterTab     by mutableStateOf(0)
-
+    var muscleFilter          by mutableStateOf("Todos")
+    var routineFilter         by mutableStateOf("Todas")
+    var filterTab             by mutableStateOf(0)
+    var searchQuery           by mutableStateOf("")
     var progressRoutineFilter by mutableStateOf("Todas")
 
-    val filteredExercises: List<Exercise>
-        get() = EXERCISES.filter { ex ->
+    var sessionDate by mutableStateOf(LocalDate.now().toString())
+
+    val filteredExercises: List<Exercise> get() {
+        val byFilter = allExercises.filter { ex ->
             if (filterTab == 0) muscleFilter == "Todos" || ex.muscle == muscleFilter
             else                routineFilter == "Todas" || ex.routine == routineFilter
         }
+        return if (searchQuery.isBlank()) byFilter
+        else byFilter.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
 
-    val progressExercises: List<Exercise>
-        get() {
-            val trained = EXERCISES.filter { ex ->
-                savedSessions.any { s -> s.sets.any { it.exerciseId == ex.id } }
-            }
-            return if (progressRoutineFilter == "Todas") trained
-            else trained.filter { it.routine == progressRoutineFilter }
-        }
+    val progressExercises: List<Exercise> get() {
+        val trained = allExercises.filter { ex -> savedSessions.any { s -> s.sets.any { it.exerciseId == ex.id } } }
+        return if (progressRoutineFilter == "Todas") trained else trained.filter { it.routine == progressRoutineFilter }
+    }
 
     fun setsFor(exerciseId: Int) = sets.filter { it.exerciseId == exerciseId }
     val totalReps   get() = sets.sumOf { it.reps }
@@ -309,38 +384,55 @@ class GymViewModel : ViewModel() {
     val groupedSets get() = sets.groupBy { it.exerciseName }
     val trainedDates: Set<String> get() = savedSessions.map { it.date }.toSet()
 
-    var sessionDate by mutableStateOf(LocalDate.now().toString())
-
-    fun logSet(exercise: Exercise, reps: Int, weightKg: Float) {
-        sets.add(WorkoutSet(exercise.id, exercise.name, reps, weightKg))
+    // ── Week stats — resets each Monday ──
+    val weekStats: WeekStats get() {
+        val weekDates = currentWeekDates().toSet()
+        val weekSessions = savedSessions.filter { it.date in weekDates }
+        val daysWithSession = weekSessions.map { it.date }.toSet().size
+        val allSets = weekSessions.flatMap { it.sets }
+        return WeekStats(
+            daysTrainedThisWeek = daysWithSession,
+            sessionsThisWeek    = weekSessions.size,
+            setsThisWeek        = allSets.size,
+            repsThisWeek        = allSets.sumOf { it.reps },
+            volumeThisWeek      = allSets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
+        )
     }
+
+    // Mini 7-dot week indicator: list of (dayLabel, trained)
+    val weekDayIndicator: List<Pair<String, Boolean>> get() {
+        val labels = listOf("L","M","X","J","V","S","D")
+        val monday = currentWeekMonday()
+        return (0..6).map { i ->
+            val date = monday.plusDays(i.toLong()).toString()
+            labels[i] to (date in trainedDates)
+        }
+    }
+
+    fun logSet(exercise: Exercise, reps: Int, weightKg: Float) =
+        sets.add(WorkoutSet(exercise.id, exercise.name, reps, weightKg))
 
     fun deleteSet(set: WorkoutSet) { sets.remove(set) }
 
     fun saveSession(context: Context) {
         if (sets.isEmpty()) return
         val idx = savedSessions.indexOfFirst { it.date == sessionDate }
-        if (idx >= 0) {
-            savedSessions[idx] = Session(sessionDate, savedSessions[idx].sets + sets.toList())
-        } else {
-            savedSessions.add(Session(sessionDate, sets.toList()))
-        }
+        if (idx >= 0) savedSessions[idx] = Session(sessionDate, savedSessions[idx].sets + sets.toList())
+        else savedSessions.add(Session(sessionDate, sets.toList()))
         Storage.save(context, savedSessions.toList())
-        sets.clear()
-        sessionDate = LocalDate.now().toString()
+        sets.clear(); sessionDate = LocalDate.now().toString()
     }
 
-    fun loadSessions(context: Context) {
-        savedSessions.clear()
-        savedSessions.addAll(Storage.load(context))
+    fun loadAll(context: Context) {
+        savedSessions.clear();   savedSessions.addAll(Storage.load(context))
+        customExercises.clear(); customExercises.addAll(Storage.loadCustomExercises(context))
     }
 
     fun deleteSetFromSession(date: String, set: WorkoutSet, context: Context) {
-        val idx = savedSessions.indexOfFirst { it.date == date }
-        if (idx < 0) return
-        val remaining = savedSessions[idx].sets.toMutableList().also { it.remove(set) }
-        if (remaining.isEmpty()) savedSessions.removeAt(idx)
-        else savedSessions[idx] = Session(date, remaining)
+        val idx = savedSessions.indexOfFirst { it.date == date }; if (idx < 0) return
+        val rem = savedSessions[idx].sets.toMutableList().also { it.remove(set) }
+        if (rem.isEmpty()) savedSessions.removeAt(idx)
+        else savedSessions[idx] = Session(date, rem)
         Storage.save(context, savedSessions.toList())
     }
 
@@ -349,104 +441,88 @@ class GymViewModel : ViewModel() {
         Storage.save(context, savedSessions.toList())
     }
 
+    fun addCustomExercise(ex: Exercise, context: Context) {
+        customExercises.add(ex); Storage.saveCustomExercises(context, customExercises.toList())
+    }
+    fun deleteCustomExercise(ex: Exercise, context: Context) {
+        customExercises.remove(ex); Storage.saveCustomExercises(context, customExercises.toList())
+    }
+    fun nextCustomId() = (allExercises.maxOfOrNull { it.id } ?: 100) + 1
+
     fun historyFor(exerciseId: Int): List<Pair<String, WorkoutSet>> =
         savedSessions.flatMap { s -> s.sets.filter { it.exerciseId == exerciseId }.map { s.date to it } }
             .sortedBy { it.first }
 
-    fun prFor(exerciseId: Int): Float =
-        historyFor(exerciseId).maxOfOrNull { it.second.weightKg } ?: 0f
+    fun prFor(exerciseId: Int): Float = historyFor(exerciseId).maxOfOrNull { it.second.weightKg } ?: 0f
+    fun allTimeE1RMFor(exerciseId: Int): Float = e1rmProgressionFor(exerciseId).maxOfOrNull { it.second } ?: 0f
+    fun maxRepsFor(exerciseId: Int): Int = historyFor(exerciseId).maxOfOrNull { it.second.reps } ?: 0
 
-    fun allTimeE1RMFor(exerciseId: Int): Float =
-        e1rmProgressionFor(exerciseId).maxOfOrNull { it.second } ?: 0f
-
-    // CAMBIO 3: mejor score hipertrofia histórico (reps × peso)
-    fun allTimeHypertrophyScoreFor(exerciseId: Int): Float =
-        hypertrophyProgressionFor(exerciseId).maxOfOrNull { it.second } ?: 0f
-
-    fun maxRepsFor(exerciseId: Int): Int =
-        historyFor(exerciseId).maxOfOrNull { it.second.reps } ?: 0
-
-    // Best E1RM per session (fuerza)
     fun e1rmProgressionFor(exerciseId: Int): List<Pair<String, Float>> =
-        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }
-            .sortedBy { it.date }
-            .map { s ->
-                val sessionSets = s.sets.filter { it.exerciseId == exerciseId }
-                s.date to bestE1RM(sessionSets)
-            }
+        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }.sortedBy { it.date }
+            .map { s -> s.date to bestE1RM(s.sets.filter { it.exerciseId == exerciseId }) }
 
-    // CAMBIO 3: Mejor set de reps×peso por sesión (hipertrofia)
     fun hypertrophyProgressionFor(exerciseId: Int): List<Pair<String, Float>> =
-        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }
-            .sortedBy { it.date }
-            .map { s ->
-                val sessionSets = s.sets.filter { it.exerciseId == exerciseId }
-                s.date to bestHypertrophyScore(sessionSets)
-            }
+        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }.sortedBy { it.date }
+            .map { s -> s.date to bestHypertrophyScore(s.sets.filter { it.exerciseId == exerciseId }) }
 
-    // Max weight per session
     fun weightProgressionFor(exerciseId: Int): List<Pair<String, Float>> =
-        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }
-            .sortedBy { it.date }
+        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }.sortedBy { it.date }
             .map { s -> s.date to s.sets.filter { it.exerciseId == exerciseId }.maxOf { it.weightKg } }
 
-    // Total volume (kg * reps) per session
     fun volumeProgressionFor(exerciseId: Int): List<Pair<String, Float>> =
-        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }
-            .sortedBy { it.date }
-            .map { s -> s.date to s.sets.filter { it.exerciseId == exerciseId }
-                .sumOf { (it.reps * it.weightKg).toDouble() }.toFloat() }
+        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }.sortedBy { it.date }
+            .map { s -> s.date to s.sets.filter { it.exerciseId == exerciseId }.sumOf { (it.reps * it.weightKg).toDouble() }.toFloat() }
 
-    // Total reps per session
     fun repsProgressionFor(exerciseId: Int): List<Pair<String, Float>> =
-        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }
-            .sortedBy { it.date }
+        savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }.sortedBy { it.date }
             .map { s -> s.date to s.sets.filter { it.exerciseId == exerciseId }.sumOf { it.reps }.toFloat() }
 
-    // CAMBIO 3: trendFor usa métrica según tipo de ejercicio
     fun trendFor(exerciseId: Int): ExerciseTrend? {
-        val ex = EXERCISES.find { it.id == exerciseId } ?: return null
-        val metricData = if (ex.isStrengthFocus) e1rmProgressionFor(exerciseId)
-        else hypertrophyProgressionFor(exerciseId)
+        val ex         = allExercises.find { it.id == exerciseId } ?: return null
+        val metricData = if (ex.isStrengthFocus) e1rmProgressionFor(exerciseId) else hypertrophyProgressionFor(exerciseId)
         if (metricData.isEmpty()) return null
+        val allTime = metricData.maxOf { it.second }
 
-        val latestMetric  = metricData.last().second
-        val allTimeMetric = metricData.maxOf { it.second }
-        val last5         = metricData.dropLast(1).takeLast(5)
-        val avg5          = if (last5.isEmpty()) latestMetric else last5.map { it.second }.average().toFloat()
-        val pctChange     = if (avg5 == 0f) 0f else ((latestMetric - avg5) / avg5) * 100f
+        // For the badge: compare the last session vs. the two before it (last 3)
+        val last3 = metricData.takeLast(3)
+        val latest = last3.last().second
+        val prev2  = last3.dropLast(1)
+        val avg3   = if (prev2.isEmpty()) latest else prev2.map { it.second }.average().toFloat()
+        val pct    = if (avg3 == 0f) 0f else ((latest - avg3) / avg3) * 100f
 
+        // Progressing if latest >= any of the last 3 AND has improved over prev2 avg
         val trend = when {
-            metricData.size >= 3 && metricData.takeLast(3).zipWithNext().all { (a, b) -> b.second < a.second } ->
-                TrendState.FATIGUE
-            pctChange > 1f  -> TrendState.PROGRESSING
-            pctChange < -1f -> TrendState.FATIGUE
-            else            -> TrendState.STAGNANT
+            last3.size >= 2 && latest > avg3 + 0.5f -> TrendState.PROGRESSING
+            last3.size >= 3 && last3.zipWithNext().all { (a, b) -> b.second < a.second } -> TrendState.FATIGUE
+            pct < -3f -> TrendState.FATIGUE
+            else      -> TrendState.STAGNANT
         }
 
-        return ExerciseTrend(ex, latestMetric, avg5, pctChange, trend, allTimeMetric, ex.isStrengthFocus)
+        // For display pct, use avg of last 5 (excluding latest) for context
+        val last5  = metricData.dropLast(1).takeLast(5)
+        val avg5   = if (last5.isEmpty()) latest else last5.map { it.second }.average().toFloat()
+        val pct5   = if (avg5 == 0f) 0f else ((latest - avg5) / avg5) * 100f
+
+        return ExerciseTrend(ex, latest, avg3, pct5, trend, allTime, ex.isStrengthFocus)
     }
+
+    val totalVolumeAllTime: Long get() =
+        savedSessions.sumOf { s -> s.sets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong() }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ACTIVITY
+// ACTIVITY & NAVIGATION
 // ─────────────────────────────────────────────────────────────────────────────
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { GymApp() }
+        super.onCreate(savedInstanceState); enableEdgeToEdge(); setContent { GymApp() }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NAVIGATION
-// ─────────────────────────────────────────────────────────────────────────────
-
 sealed class Tab(val route: String, val label: String, val icon: ImageVector) {
     object Home     : Tab("home",     "Inicio",     Icons.Default.Home)
-    object Train    : Tab("train",    "Ejercicios", Icons.Default.FitnessCenter)
+    object Train    : Tab("train",    "Entrenamiento", Icons.Default.FitnessCenter)
     object Calendar : Tab("calendar", "Historial",  Icons.Default.CalendarMonth)
     object Progress : Tab("progress", "Progreso",   Icons.AutoMirrored.Filled.TrendingUp)
 }
@@ -458,89 +534,61 @@ fun GymApp() {
     val context = LocalContext.current
     val vm: GymViewModel = viewModel()
 
-    LaunchedEffect(Unit) { vm.loadSessions(context) }
+    LaunchedEffect(Unit) { vm.loadAll(context) }
 
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary        = Accent, onPrimary    = Black,
-            background     = Black,  onBackground = TextPrim,
-            surface        = DarkSurf, onSurface  = TextPrim,
-            surfaceVariant = CardBg, outline      = Border,
-        )
-    ) {
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary        = Accent,    onPrimary    = Black,
+        background     = Surface0,  onBackground = TextPrim,
+        surface        = Surface1,  onSurface    = TextPrim,
+        surfaceVariant = Surface2,  outline      = Border,
+    )) {
         val nav      = rememberNavController()
         val navEntry by nav.currentBackStackEntryAsState()
         val current  = navEntry?.destination?.route
-
         val innerRoutes = setOf(Tab.Train.route, Tab.Calendar.route, Tab.Progress.route)
 
-        Scaffold(
-            containerColor = Black,
-            bottomBar = {
-                if (current in innerRoutes) {
-                    NavigationBar(containerColor = DarkSurf, tonalElevation = 0.dp) {
-                        TABS.forEach { tab ->
-                            NavigationBarItem(
-                                selected = current == tab.route,
-                                onClick = {
-                                    if (tab == Tab.Home) {
-                                        nav.navigate(Tab.Home.route) {
-                                            popUpTo(0) { inclusive = true }
-                                            launchSingleTop = true
-                                        }
-                                    } else {
-                                        nav.navigate(tab.route) {
-                                            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                                            launchSingleTop = true
-                                            restoreState    = true
-                                        }
-                                    }
-                                },
-                                icon  = { Icon(tab.icon, contentDescription = tab.label) },
-                                label = { Text(tab.label, fontSize = 10.sp) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor   = Black,
-                                    selectedTextColor   = Accent,
-                                    unselectedIconColor = TextSec,
-                                    unselectedTextColor = TextSec,
-                                    indicatorColor      = Accent
-                                )
+        Scaffold(containerColor = Surface0, bottomBar = {
+            AnimatedVisibility(visible = current in innerRoutes,
+                enter = slideInVertically(initialOffsetY = { it }),
+                exit  = slideOutVertically(targetOffsetY = { it })) {
+                NavigationBar(containerColor = Surface1, tonalElevation = 0.dp) {
+                    TABS.forEach { tab ->
+                        NavigationBarItem(
+                            selected = current == tab.route,
+                            onClick  = {
+                                if (tab == Tab.Home)
+                                    nav.navigate(Tab.Home.route) { popUpTo(0) { inclusive = true }; launchSingleTop = true }
+                                else nav.navigate(tab.route) {
+                                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true; restoreState = true
+                                }
+                            },
+                            icon  = { Icon(tab.icon, contentDescription = tab.label) },
+                            label = { Text(tab.label, fontSize = 10.sp) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor   = Black,   selectedTextColor   = Accent,
+                                unselectedIconColor = TextSec, unselectedTextColor = TextSec,
+                                indicatorColor      = Accent
                             )
-                        }
+                        )
                     }
                 }
             }
-        ) { padding ->
-            NavHost(
-                navController    = nav,
-                startDestination = Tab.Home.route,
-                modifier         = Modifier.padding(padding)
-            ) {
-                composable(Tab.Home.route) {
-                    HomeScreen(vm,
-                        onGoToTrain    = { nav.navigate(Tab.Train.route) },
-                        onGoToCalendar = { nav.navigate(Tab.Calendar.route) },
-                        onGoToProgress = { nav.navigate(Tab.Progress.route) }
-                    )
-                }
-                composable(Tab.Train.route) {
-                    ExercisesScreen(vm, onGoToSession = { nav.navigate("session") })
-                }
+        }) { padding ->
+            NavHost(navController = nav, startDestination = Tab.Home.route,
+                modifier = Modifier.padding(padding)) {
+                composable(Tab.Home.route)     { HomeScreen(vm, { nav.navigate(Tab.Train.route) }, { nav.navigate(Tab.Calendar.route) }, { nav.navigate(Tab.Progress.route) }) }
+                composable(Tab.Train.route)    { ExercisesScreen(vm) { nav.navigate("session") } }
                 composable(Tab.Calendar.route) { CalendarScreen(vm) }
                 composable(Tab.Progress.route) { ProgressScreen(vm) }
                 composable("session") {
-                    SessionScreen(vm,
-                        onBack = { nav.popBackStack() },
-                        onSave = {
-                            vm.saveSession(context)
-                            nav.navigate("summary") { popUpTo(Tab.Train.route) }
-                        }
-                    )
+                    SessionScreen(vm, onBack = { nav.popBackStack() }, onSave = {
+                        vm.saveSession(context)
+                        nav.navigate("summary") { popUpTo(Tab.Train.route) }
+                    })
                 }
                 composable("summary") {
-                    SummaryScreen(vm,
-                        onBack = { nav.navigate(Tab.Home.route) { popUpTo(0) { inclusive = true } } }
-                    )
+                    SummaryScreen(vm) { nav.navigate(Tab.Home.route) { popUpTo(0) { inclusive = true } } }
                 }
             }
         }
@@ -548,95 +596,184 @@ fun GymApp() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOME — CAMBIO 1: sin best/worst, solo stats simples (4 y 5 editables)
+// HOME SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-fun HomeScreen(
-    vm: GymViewModel,
-    onGoToTrain: () -> Unit,
-    onGoToCalendar: () -> Unit,
-    onGoToProgress: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize().background(Black).padding(horizontal = 24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+fun HomeScreen(vm: GymViewModel, onTrain: () -> Unit, onCalendar: () -> Unit, onProgress: () -> Unit) {
+    val week    = vm.weekStats
+    val weekDays = vm.weekDayIndicator
+    val hasWeekActivity = week.daysTrainedThisWeek > 0
+
+    LazyColumn(
+        Modifier.fillMaxSize().background(Surface0),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp)
     ) {
-        // Header — CAMBIO 1: eliminado botón de export
-        Column {
-            Text("GYM",     fontSize = 52.sp, fontWeight = FontWeight.Black, color = Accent,   lineHeight = 52.sp)
-            Text("TRACKER", fontSize = 52.sp, fontWeight = FontWeight.Black, color = TextPrim, lineHeight = 52.sp)
+        item { Spacer(Modifier.height(64.dp)) }
+
+        // ── Title — left-aligned, GYM directly above TRACKER ──
+        item {
+            Column(Modifier.fillMaxWidth()) {
+                Text("GYM",     fontSize = 52.sp, fontWeight = FontWeight.Black, color = Accent,   lineHeight = 52.sp)
+                Text("TRACKER", fontSize = 52.sp, fontWeight = FontWeight.Black, color = TextPrim, lineHeight = 52.sp)
+            }
+            Spacer(Modifier.height(40.dp))
         }
 
-        Spacer(Modifier.height(12.dp))
-
-        if (vm.sets.isNotEmpty()) {
-            Surface(shape = RoundedCornerShape(50), color = Accent.copy(alpha = 0.15f)) {
-                Text("Sesión activa · ${vm.sets.size} series",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                    fontSize = 13.sp, color = Accent, fontWeight = FontWeight.Bold)
+        // ── Active session pill ──
+        item {
+            AnimatedVisibility(visible = vm.sets.isNotEmpty(),
+                enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Column {
+                    Surface(shape = RoundedCornerShape(50),
+                        color = Accent.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, Accent.copy(alpha = 0.3f))) {
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(Modifier.size(7.dp).background(Accent, CircleShape))
+                            Text("Sesión activa · ${vm.sets.size} series",
+                                fontSize = 13.sp, color = Accent, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
             }
+        }
+
+        // ── Nav buttons ──
+        item {
+            HomeNavButton(Icons.Default.FitnessCenter, "Entrenar",
+                "Selecciona ejercicios y registra series", onTrain)
             Spacer(Modifier.height(12.dp))
+            HomeNavButton(Icons.Default.CalendarMonth, "Historial",
+                "Calendario de entrenamientos guardados", onCalendar)
+            Spacer(Modifier.height(12.dp))
+            HomeNavButton(Icons.AutoMirrored.Filled.TrendingUp, "Progreso",
+                "E1RM, tendencias y marcas personales", onProgress)
         }
 
-        Spacer(Modifier.height(28.dp))
-
-        HomeButton(Icons.Default.FitnessCenter,         "Entrenar",  "Selecciona ejercicios y registra series",   onGoToTrain)
-        Spacer(Modifier.height(16.dp))
-        HomeButton(Icons.Default.CalendarMonth,          "Historial", "Calendario de entrenamientos guardados",    onGoToCalendar)
-        Spacer(Modifier.height(16.dp))
-        HomeButton(Icons.AutoMirrored.Filled.TrendingUp, "Progreso",  "E1RM, tendencias y marcas personales",      onGoToProgress)
-
-        if (vm.savedSessions.isNotEmpty()) {
-            Spacer(Modifier.height(32.dp))
+        // ── Weekly stats block ──
+        item {
+            Spacer(Modifier.height(36.dp))
             HorizontalDivider(color = Border)
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // CAMBIO 1: 5 stats simples, sin lógica best/worst
-            val totalSeries   = vm.savedSessions.sumOf { it.sets.size }
-            val totalReps     = vm.savedSessions.sumOf { s -> s.sets.sumOf { it.reps } }
-            val totalVolume   = vm.savedSessions.sumOf { s -> s.sets.sumOf { (it.weightKg * it.reps).toDouble() } }.toInt()
-            val distinctEx    = vm.savedSessions.flatMap { it.sets }.map { it.exerciseId }.distinct().size
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                MiniStat("Sesiones",    "${vm.savedSessions.size}")
-                MiniStat("Series",      "$totalSeries")
-                MiniStat("Reps",        "$totalReps")
+            // Week label + date range
+            val monday = currentWeekMonday()
+            val sunday = currentWeekSunday()
+            val fmt = DateTimeFormatter.ofPattern("d MMM")
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "ESTA SEMANA",
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp, color = TextTert
+                )
+                Text(
+                    "${monday.format(fmt)} – ${sunday.format(fmt)}",
+                    fontSize = 10.sp, color = TextTert
+                )
             }
-//            Spacer(Modifier.height(14.dp))
-//            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-//                MiniStat("Ejercicios",  "$distinctEx")
-//                MiniStat("Volumen",     "${totalVolume}kg")
-//            }
+            Spacer(Modifier.height(14.dp))
+
+            // 7-dot day indicator
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                weekDays.forEach { (label, trained) ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Box(
+                            Modifier
+                                .size(30.dp)
+                                .background(
+                                    if (trained) Accent else Surface2,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .then(
+                                    if (!trained) Modifier.border(1.dp, Border, RoundedCornerShape(8.dp))
+                                    else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (trained) {
+                                Text("✓", fontSize = 12.sp, color = Black, fontWeight = FontWeight.Black)
+                            }
+                        }
+                        Text(label, fontSize = 9.sp, color = if (trained) Accent else TextTert,
+                            fontWeight = if (trained) FontWeight.Bold else FontWeight.Normal)
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+
+            // Stats row — días / series / volumen
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                WeekStatItem(
+                    value = if (week.daysTrainedThisWeek > 2) "${week.daysTrainedThisWeek}\uD83D\uDD25" else "${week.daysTrainedThisWeek}",
+                    label = if (week.daysTrainedThisWeek == 1) "sesión" else "sesiones"
+                )
+                Box(Modifier.width(1.dp).height(28.dp).background(Border))
+                WeekStatItem(
+                    value = "${week.setsThisWeek}",
+                    label = "series"
+                )
+                Box(Modifier.width(1.dp).height(28.dp).background(Border))
+                WeekStatItem(
+                    value = formatVol(week.volumeThisWeek),
+                    label = "volumen kg"
+                )
+            }
+            Spacer(Modifier.height(28.dp))
         }
     }
 }
 
 @Composable
-fun HomeButton(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+fun WeekStatItem(value: String, label: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Black, color = Accent)
+        Text(label, fontSize = 10.sp, color = TextSec)
+    }
+}
+
+fun formatVol(kg: Long): String = when {
+    kg >= 1_000_000 -> "${kg / 1_000_000}M"
+    kg >= 1_000     -> "${kg / 1_000}K"
+    else            -> "$kg"
+}
+
+@Composable
+fun HomeNavButton(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     Surface(onClick = onClick, modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp), color = CardBg, border = BorderStroke(1.dp, Border)) {
-        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
+        shape = RoundedCornerShape(18.dp), color = Surface1,
+        border = BorderStroke(1.dp, Border)) {
+        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(Modifier.size(48.dp).background(Accent.copy(0.12f), RoundedCornerShape(14.dp)),
+            Box(Modifier.size(44.dp).background(Accent.copy(0.08f), RoundedCornerShape(13.dp)),
                 contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = Accent, modifier = Modifier.size(24.dp))
+                Icon(icon, null, tint = Accent, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text(title,    fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrim)
-                Text(subtitle, fontSize = 13.sp, color = TextSec)
+                Text(title,    fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextPrim)
+                Text(subtitle, fontSize = 12.sp, color = TextSec, lineHeight = 16.sp)
             }
-            Icon(Icons.Default.ChevronRight, null, tint = TextTert)
+            Icon(Icons.Default.ChevronRight, null, tint = TextTert, modifier = Modifier.size(18.dp))
         }
-    }
-}
-
-@Composable
-fun MiniStat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Black, color = Accent)
-        Text(label, fontSize = 11.sp, color = TextSec)
     }
 }
 
@@ -646,52 +783,126 @@ fun MiniStat(label: String, value: String) {
 
 @Composable
 fun ExercisesScreen(vm: GymViewModel, onGoToSession: () -> Unit) {
-    var dialogExercise by remember { mutableStateOf<Exercise?>(null) }
+    var dialogExercise    by remember { mutableStateOf<Exercise?>(null) }
+    var showAddCustom     by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf<Exercise?>(null) }
+    val context = LocalContext.current
 
-    Scaffold(
-        containerColor = Black,
+    if (showAddCustom) AddCustomExerciseDialog(vm, context) { showAddCustom = false }
+
+    showDeleteConfirm?.let { ex ->
+        ConfirmDeleteDialog(
+            title = "Eliminar ejercicio",
+            body  = "¿Eliminar \"${ex.name}\"? El historial no se perderá.",
+            onConfirm = { vm.deleteCustomExercise(ex, context); showDeleteConfirm = null },
+            onDismiss = { showDeleteConfirm = null }
+        )
+    }
+
+    Scaffold(containerColor = Surface0,
         floatingActionButton = {
-            if (vm.sets.isNotEmpty()) {
-                ExtendedFloatingActionButton(
-                    onClick = onGoToSession, containerColor = Accent, contentColor = Black,
-                    icon = { Icon(Icons.Default.PlayArrow, null) },
-                    text = { Text("Ver sesión (${vm.sets.size})", fontWeight = FontWeight.Bold) }
-                )
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SmallFloatingActionButton(onClick = { showAddCustom = true },
+                    containerColor = Surface2, contentColor = Accent,
+                    shape = RoundedCornerShape(13.dp)) { Icon(Icons.Default.Add, null) }
+                AnimatedVisibility(visible = vm.sets.isNotEmpty(),
+                    enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+                    ExtendedFloatingActionButton(
+                        onClick = onGoToSession,
+                        containerColor = Accent, contentColor = Black,
+                        icon = { Icon(Icons.Default.PlayArrow, null) },
+                        text = { Text("Sesión (${vm.sets.size})", fontWeight = FontWeight.Bold) }
+                    )
+                }
             }
-        }
-    ) { padding ->
+        }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                Text("Ejercicios", fontSize = 28.sp, fontWeight = FontWeight.Black, color = TextPrim)
-                if (vm.sets.isNotEmpty())
-                    Text("${vm.sets.size} series hoy", fontSize = 13.sp, color = Accent, fontWeight = FontWeight.SemiBold)
-            }
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-                item { FilterChip("Músculo", vm.filterTab == 0) { vm.filterTab = 0 } }
-                item { FilterChip("Rutina",  vm.filterTab == 1) { vm.filterTab = 1 } }
-            }
-
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                val list = if (vm.filterTab == 0) MUSCLES else ROUTINES
-                items(list) { label ->
-                    val sel = if (vm.filterTab == 0) vm.muscleFilter == label else vm.routineFilter == label
-                    FilterChip(label, sel) {
-                        if (vm.filterTab == 0) vm.muscleFilter = label else vm.routineFilter = label
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Entrenamiento", fontSize = 26.sp, fontWeight = FontWeight.Black, color = TextPrim)
+                AnimatedVisibility(visible = vm.sets.isNotEmpty()) {
+                    Surface(shape = RoundedCornerShape(50), color = Accent.copy(0.1f)) {
+                        Text("${vm.sets.size} series",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            fontSize = 12.sp, color = Accent, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
-            LazyVerticalGrid(columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()) {
-                items(vm.filteredExercises, key = { it.id }) { exercise ->
-                    ExerciseCard(exercise, vm.setsFor(exercise.id).size) { dialogExercise = exercise }
+            OutlinedTextField(
+                value = vm.searchQuery, onValueChange = { vm.searchQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                placeholder = { Text("Buscar ejercicio…", color = TextTert, fontSize = 14.sp) },
+                leadingIcon  = { Icon(Icons.Default.Search, null, tint = TextSec, modifier = Modifier.size(18.dp)) },
+                trailingIcon = {
+                    AnimatedVisibility(visible = vm.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { vm.searchQuery = "" }) {
+                            Icon(Icons.Default.Close, null, tint = TextSec, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                },
+                singleLine = true, shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor   = Accent,   unfocusedBorderColor = Border,
+                    focusedTextColor     = TextPrim, unfocusedTextColor   = TextPrim,
+                    cursorColor          = Accent,
+                    focusedContainerColor   = Surface1, unfocusedContainerColor = Surface1
+                )
+            )
+            Spacer(Modifier.height(12.dp))
+
+            AnimatedVisibility(visible = vm.searchQuery.isBlank()) {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().background(Surface2, RoundedCornerShape(12.dp)).padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        listOf("Músculo", "Rutina").forEachIndexed { idx, label ->
+                            val selected = vm.filterTab == idx
+                            Surface(onClick = { vm.filterTab = idx }, modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (selected) Accent else Color.Transparent) {
+                                Box(Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center) {
+                                    Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                        color = if (selected) Black else TextSec)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                        val list = if (vm.filterTab == 0) MUSCLES else ROUTINES
+                        items(list) { label ->
+                            val isAll = label == "Todos" || label == "Todas"
+                            val sel = if (vm.filterTab == 0) vm.muscleFilter == label else vm.routineFilter == label
+                            FilterChipItem(label = label, selected = sel, isDefault = isAll) {
+                                if (vm.filterTab == 0) vm.muscleFilter = if (sel && !isAll) "Todos" else label
+                                else vm.routineFilter = if (sel && !isAll) "Todas" else label
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+
+            val exercises = vm.filteredExercises
+            if (exercises.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Sin resultados para \"${vm.searchQuery}\"", color = TextSec, textAlign = TextAlign.Center)
+                }
+            } else {
+                LazyVerticalGrid(columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 110.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement   = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize()) {
+                    items(exercises, key = { it.id }) { exercise ->
+                        ExerciseCard(exercise = exercise, setCount = vm.setsFor(exercise.id).size,
+                            onClick  = { dialogExercise = exercise },
+                            onDelete = if (exercise.isCustom) ({ showDeleteConfirm = exercise }) else null)
+                    }
                 }
             }
         }
@@ -700,6 +911,21 @@ fun ExercisesScreen(vm: GymViewModel, onGoToSession: () -> Unit) {
     dialogExercise?.let { ex ->
         LogSetDialog(ex, vm.setsFor(ex.id).lastOrNull(), onDismiss = { dialogExercise = null }) { reps, weight ->
             vm.logSet(ex, reps, weight); dialogExercise = null
+        }
+    }
+}
+
+@Composable
+fun FilterChipItem(label: String, selected: Boolean, isDefault: Boolean, onClick: () -> Unit) {
+    val bgColor    = when { selected && isDefault -> Surface3; selected -> Accent; else -> Color.Transparent }
+    val textColor  = when { selected && isDefault -> TextSec;  selected -> Black;  else -> TextSec }
+    val borderColor = when { selected && !isDefault -> Accent; selected -> Color.Transparent; else -> Border }
+    Surface(onClick = onClick, shape = RoundedCornerShape(50), color = bgColor,
+        border = BorderStroke(1.dp, borderColor), modifier = Modifier.height(34.dp)) {
+        Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+            Text(label, fontSize = 12.sp,
+                fontWeight = if (selected && !isDefault) FontWeight.Bold else FontWeight.Normal,
+                color = textColor)
         }
     }
 }
@@ -713,103 +939,81 @@ fun CalendarScreen(vm: GymViewModel) {
     val context = LocalContext.current
     var selectedDate by remember { mutableStateOf<String?>(null) }
     var displayMonth by remember { mutableStateOf(YearMonth.now()) }
-    val sessionForSelected = selectedDate?.let { d -> vm.savedSessions.find { it.date == d } }
+    val session = selectedDate?.let { d -> vm.savedSessions.find { it.date == d } }
 
-    Column(Modifier.fillMaxSize().background(Black)) {
-        Text("Historial", fontSize = 28.sp, fontWeight = FontWeight.Black, color = TextPrim,
+    Column(Modifier.fillMaxSize().background(Surface0)) {
+        Text("Historial", fontSize = 26.sp, fontWeight = FontWeight.Black, color = TextPrim,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp))
 
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { displayMonth = displayMonth.minusMonths(1) }) { Icon(Icons.Default.ChevronLeft,  null, tint = TextPrim) }
+            IconButton({ displayMonth = displayMonth.minusMonths(1) }) { Icon(Icons.Default.ChevronLeft, null, tint = TextPrim) }
             Text(displayMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy")).replaceFirstChar { it.uppercase() },
-                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrim)
-            IconButton(onClick = { displayMonth = displayMonth.plusMonths(1) })  { Icon(Icons.Default.ChevronRight, null, tint = TextPrim) }
+                fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = TextPrim)
+            IconButton({ displayMonth = displayMonth.plusMonths(1) }) { Icon(Icons.Default.ChevronRight, null, tint = TextPrim) }
         }
-
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             listOf("L","M","X","J","V","S","D").forEach { d ->
                 Text(d, modifier = Modifier.weight(1f), textAlign = TextAlign.Center,
-                    fontSize = 12.sp, color = TextSec, fontWeight = FontWeight.Bold)
+                    fontSize = 11.sp, color = TextSec, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(Modifier.height(4.dp))
-
-        CalendarGrid(displayMonth, vm.trainedDates, selectedDate) { date ->
+        CalendarGrid(displayMonth, vm.savedSessions.toList(), vm.allExercises, selectedDate) { date ->
             selectedDate = if (selectedDate == date) null else date
         }
-
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
         HorizontalDivider(color = Border, modifier = Modifier.padding(horizontal = 16.dp))
         Spacer(Modifier.height(4.dp))
 
         when {
             selectedDate == null -> {
-                if (vm.savedSessions.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Aún no hay sesiones guardadas", color = TextSec)
-                    }
+                val monthSessions = vm.savedSessions.filter {
+                    try { YearMonth.from(LocalDate.parse(it.date)) == displayMonth } catch (e: Exception) { false }
+                }.sortedByDescending { it.date }
+                if (monthSessions.isEmpty()) {
+                    EmptyState("Sin entrenamientos en ${displayMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy")).replaceFirstChar { it.uppercase() }}")
                 } else {
                     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(vm.savedSessions.sortedByDescending { it.date }, key = { it.date }) { session ->
-                            SessionHistoryCard(session) { selectedDate = session.date }
+                        items(monthSessions, key = { it.date }) { s ->
+                            SessionHistoryCard(s, vm.allExercises) { selectedDate = s.date }
                         }
                     }
                 }
             }
-            sessionForSelected == null -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Sin entrenamiento este día", color = TextSec)
-                }
-            }
+            session == null -> EmptyState("Sin entrenamiento este día")
             else -> {
-                var showDeleteDialog by remember(selectedDate) { mutableStateOf(false) }
-
-                if (showDeleteDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showDeleteDialog = false },
-                        containerColor = DarkSurf,
-                        title = { Text("Eliminar sesión", color = TextPrim, fontWeight = FontWeight.Bold) },
-                        text  = { Text("Se borrará todo el entrenamiento del ${formatDate(sessionForSelected.date)}. Esta acción no se puede deshacer.", color = TextSec) },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                vm.deleteSession(sessionForSelected.date, context)
-                                selectedDate = null; showDeleteDialog = false
-                            }) { Text("Eliminar", color = Color.Red, fontWeight = FontWeight.Bold) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar", color = TextSec) }
-                        }
-                    )
-                }
-
+                var showDelete by remember(selectedDate) { mutableStateOf(false) }
+                if (showDelete) ConfirmDeleteDialog(
+                    title = "Eliminar sesión",
+                    body  = "Se borrará todo el entrenamiento del ${formatDate(session.date)}.",
+                    onConfirm = { vm.deleteSession(session.date, context); selectedDate = null; showDelete = false },
+                    onDismiss = { showDelete = false }
+                )
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     item {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(formatDate(sessionForSelected.date), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrim)
-                            Surface(onClick = { showDeleteDialog = true }, shape = RoundedCornerShape(10.dp),
-                                color = Color.Red.copy(alpha = 0.12f), border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.3f))) {
+                            Text(formatDate(session.date), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrim)
+                            Surface(onClick = { showDelete = true }, shape = RoundedCornerShape(10.dp),
+                                color = RedBad.copy(0.08f), border = BorderStroke(1.dp, RedBad.copy(0.25f))) {
                                 Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Icon(Icons.Default.Delete, null, tint = Color.Red, modifier = Modifier.size(14.dp))
-                                    Text("Borrar sesión", fontSize = 11.sp, color = Color.Red, fontWeight = FontWeight.Bold)
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Icon(Icons.Default.Delete, null, tint = RedBad, modifier = Modifier.size(13.dp))
+                                    Text("Borrar", fontSize = 11.sp, color = RedBad, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            StatCard("Series", "${sessionForSelected.sets.size}", Modifier.weight(1f))
-                            StatCard("Reps",   "${sessionForSelected.sets.sumOf { it.reps }}", Modifier.weight(1f))
-                            StatCard("Vol.",   "${sessionForSelected.sets.sumOf { (it.weightKg * it.reps).toDouble() }.toInt()}kg", Modifier.weight(1f))
+                            StatCard("Series", "${session.sets.size}", Modifier.weight(1f))
+                            StatCard("Reps",   "${session.sets.sumOf { it.reps }}", Modifier.weight(1f))
+                            StatCard("Vol.", "${session.sets.sumOf { (it.weightKg * it.reps).toDouble() }.toInt()}kg", Modifier.weight(1f))
                         }
                     }
-                    sessionForSelected.sets.groupBy { it.exerciseName }.forEach { (name, exSets) ->
-                        item(key = name) {
-                            ExerciseBlock(name, exSets, onDelete = { set ->
-                                vm.deleteSetFromSession(sessionForSelected.date, set, context)
-                            })
-                        }
+                    session.sets.groupBy { it.exerciseName }.forEach { (name, sets) ->
+                        item(key = name) { ExerciseBlock(name, sets) { set -> vm.deleteSetFromSession(session.date, set, context) } }
                     }
                 }
             }
@@ -818,13 +1022,19 @@ fun CalendarScreen(vm: GymViewModel) {
 }
 
 @Composable
-fun CalendarGrid(month: YearMonth, trainedDates: Set<String>, selectedDate: String?, onSelect: (String) -> Unit) {
+fun CalendarGrid(
+    month: YearMonth,
+    sessions: List<Session>,
+    allExercises: List<Exercise>,
+    selectedDate: String?,
+    onSelect: (String) -> Unit
+) {
     val startOffset = (month.atDay(1).dayOfWeek.value - 1) % 7
     val daysInMonth = month.lengthOfMonth()
-    val rows = ((startOffset + daysInMonth) + 6) / 7
+    val trainedDates = sessions.map { it.date }.toSet()
 
     Column(Modifier.padding(horizontal = 16.dp)) {
-        repeat(rows) { row ->
+        repeat(((startOffset + daysInMonth) + 6) / 7) { row ->
             Row(Modifier.fillMaxWidth()) {
                 repeat(7) { col ->
                     val dayNum = row * 7 + col - startOffset + 1
@@ -834,14 +1044,12 @@ fun CalendarGrid(month: YearMonth, trainedDates: Set<String>, selectedDate: Stri
                             val trained  = dateStr in trainedDates
                             val selected = dateStr == selectedDate
                             val isToday  = dateStr == LocalDate.now().toString()
-                            Box(
-                                modifier = Modifier.size(36.dp)
-                                    .background(when { selected -> Accent; trained -> Accent.copy(alpha = 0.25f); else -> Color.Transparent }, CircleShape)
-                                    .then(if (isToday && !selected) Modifier.border(1.dp, Accent, CircleShape) else Modifier)
-                                    .clickable { onSelect(dateStr) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("$dayNum", fontSize = 13.sp,
+                            Box(Modifier.size(34.dp)
+                                .background(when { selected -> Accent; trained -> Accent.copy(0.18f); else -> Color.Transparent }, CircleShape)
+                                .then(if (isToday && !selected) Modifier.border(1.5.dp, Accent, CircleShape) else Modifier)
+                                .clickable { onSelect(dateStr) },
+                                contentAlignment = Alignment.Center) {
+                                Text("$dayNum", fontSize = 12.sp,
                                     fontWeight = if (trained || selected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (selected) Black else if (isToday) Accent else TextPrim)
                             }
@@ -854,143 +1062,144 @@ fun CalendarGrid(month: YearMonth, trainedDates: Set<String>, selectedDate: Stri
 }
 
 @Composable
-fun SessionHistoryCard(session: Session, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = RoundedCornerShape(14.dp), color = CardBg, border = BorderStroke(1.dp, Border)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text(formatDate(session.date), fontWeight = FontWeight.Bold, color = TextPrim)
-                Text(session.sets.map { it.exerciseName }.distinct().take(3).joinToString(", "),
+fun SessionHistoryCard(session: Session, allExercises: List<Exercise>, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(14.dp), color = Surface1, border = BorderStroke(1.dp, Border)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(formatDate(session.date), fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 14.sp)
+                Text(session.sets.map { it.exerciseName }.distinct().take(3).joinToString(" · "),
                     fontSize = 12.sp, color = TextSec, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+            Spacer(Modifier.width(12.dp))
             Column(horizontalAlignment = Alignment.End) {
-                Text("${session.sets.size} series", fontWeight = FontWeight.Bold, color = Accent)
-                Text("${session.sets.sumOf { it.reps }} reps", fontSize = 12.sp, color = TextSec)
+                Text("${session.sets.size}", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Accent)
+                Text("series", fontSize = 10.sp, color = TextSec)
             }
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROGRESS SCREEN — CAMBIO 2: botón export aquí arriba
+// PROGRESS SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun ProgressScreen(vm: GymViewModel) {
     val context = LocalContext.current
-    var selectedExercise by remember { mutableStateOf<Exercise?>(null) }
+    var selectedEx   by remember { mutableStateOf<Exercise?>(null) }
+    var exportResult by remember { mutableStateOf<String?>(null) }
 
-    if (selectedExercise == null) {
-        Column(Modifier.fillMaxSize().background(Black)) {
-            // CAMBIO 2: header con botón export
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) exportResult = Storage.exportToDownloads(context, vm.savedSessions.toList(), vm.allExercises) ?: ""
+        else {
+            Storage.exportForShare(context, vm.savedSessions.toList(), vm.allExercises)?.let { uri ->
+                context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                    type = "text/csv"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }, "Exportar CSV"))
+            }
+        }
+    }
+
+    fun doDownload() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+            exportResult = Storage.exportToDownloads(context, vm.savedSessions.toList(), vm.allExercises) ?: ""
+        else {
+            val perm = android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+            if (ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED)
+                exportResult = Storage.exportToDownloads(context, vm.savedSessions.toList(), vm.allExercises) ?: ""
+            else permLauncher.launch(perm)
+        }
+    }
+
+    fun doShare() {
+        Storage.exportForShare(context, vm.savedSessions.toList(), vm.allExercises)?.let { uri ->
+            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }, "Compartir CSV"))
+        }
+    }
+
+    exportResult?.let { result ->
+        val ok = result.isNotEmpty()
+        AlertDialog(onDismissRequest = { exportResult = null }, containerColor = Surface2,
+            icon  = { Text(if (ok) "✅" else "❌", fontSize = 26.sp) },
+            title = { Text(if (ok) "Exportado" else "Error al exportar", color = TextPrim, fontWeight = FontWeight.Bold) },
+            text  = { Text(if (ok) "Guardado en Descargas:\n$result" else "No se pudo guardar. Prueba a compartirlo.", color = TextSec, fontSize = 13.sp) },
+            confirmButton = { TextButton(onClick = { exportResult = null }) { Text("OK", color = Accent, fontWeight = FontWeight.Bold) } },
+            dismissButton = if (!ok) ({ TextButton(onClick = { exportResult = null; doShare() }) { Text("Compartir", color = TextSec) } }) else null
+        )
+    }
+
+    if (selectedEx == null) {
+        Column(Modifier.fillMaxSize().background(Surface0)) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Progreso", fontSize = 28.sp, fontWeight = FontWeight.Black, color = TextPrim)
+                Text("Progreso", fontSize = 26.sp, fontWeight = FontWeight.Black, color = TextPrim)
                 if (vm.savedSessions.isNotEmpty()) {
-                    Surface(
-                        onClick = {
-                            val uri = Storage.exportCSV(context, vm.savedSessions.toList())
-                            uri?.let {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/csv"
-                                    putExtra(Intent.EXTRA_STREAM, it)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(intent, "Exportar datos"))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(onClick = { doShare() }, shape = RoundedCornerShape(11.dp),
+                            color = Surface2, border = BorderStroke(1.dp, Border), modifier = Modifier.size(36.dp)) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("📤", fontSize = 15.sp) }
+                        }
+                        Surface(onClick = { doDownload() }, shape = RoundedCornerShape(11.dp),
+                            color = Accent.copy(0.08f), border = BorderStroke(1.dp, Accent.copy(0.25f)),
+                            modifier = Modifier.height(36.dp)) {
+                            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Icon(Icons.Default.Download, null, tint = Accent, modifier = Modifier.size(14.dp))
+                                Text("CSV", fontSize = 11.sp, color = Accent, fontWeight = FontWeight.Bold)
                             }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        color = CardBg,
-                        border = BorderStroke(1.dp, Border),
-                        modifier = Modifier.height(38.dp)
-                    ) {
-                        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("📤", fontSize = 16.sp)
-                            Text("Exportar CSV", fontSize = 12.sp, color = TextSec, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
-
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(horizontal = 20.dp),
-                modifier = Modifier.padding(bottom = 14.dp, top = 10.dp)) {
-                items(ROUTINES) { r ->
-                    FilterChip(r, vm.progressRoutineFilter == r) { vm.progressRoutineFilter = r }
-                }
+                modifier = Modifier.padding(top = 10.dp, bottom = 12.dp)) {
+                items(ROUTINES) { r -> Chip(r, vm.progressRoutineFilter == r) { vm.progressRoutineFilter = r } }
             }
-
             if (vm.progressExercises.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (vm.savedSessions.isEmpty()) "Entrena y guarda sesiones\npara ver tu progreso"
-                        else "Sin ejercicios para este filtro",
-                        color = TextSec, textAlign = TextAlign.Center
-                    )
-                }
+                EmptyState(if (vm.savedSessions.isEmpty()) "Entrena y guarda sesiones\npara ver tu progreso" else "Sin ejercicios para este filtro")
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(vm.progressExercises, key = { it.id }) { ex ->
                         val trend    = vm.trendFor(ex.id)
                         val sessions = vm.e1rmProgressionFor(ex.id).size
-
-                        Surface(onClick = { selectedExercise = ex }, shape = RoundedCornerShape(14.dp),
-                            color = CardBg, border = BorderStroke(1.dp, Border)) {
+                        Surface(onClick = { selectedEx = ex }, shape = RoundedCornerShape(14.dp),
+                            color = Surface1, border = BorderStroke(1.dp, Border)) {
                             Row(Modifier.fillMaxWidth().padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-
-                                Box(Modifier.size(44.dp).background(ex.color.copy(0.12f), RoundedCornerShape(12.dp)),
-                                    contentAlignment = Alignment.Center) { Text(ex.emoji, fontSize = 22.sp) }
-
+                                Box(Modifier.size(44.dp).background(ex.color.copy(0.1f), RoundedCornerShape(12.dp)),
+                                    contentAlignment = Alignment.Center) { Text(ex.emoji, fontSize = 20.sp) }
                                 Column(Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(ex.name, fontWeight = FontWeight.Bold, color = TextPrim)
-                                        // CAMBIO 3: badge tipo ejercicio
-                                        if (ex.isStrengthFocus) {
-                                            Surface(shape = RoundedCornerShape(4.dp), color = Accent.copy(0.15f)) {
-                                                Text("FUERZA", fontSize = 8.sp, color = Accent, fontWeight = FontWeight.Black,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-                                            }
-                                        }
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Text(ex.name, fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 14.sp,
+                                            modifier = Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        if (ex.isStrengthFocus) TypeBadge("FUERZA", Accent)
+                                        if (ex.isCustom)       TypeBadge("CUSTOM", Blue)
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text("${ex.muscle} · $sessions ses.", fontSize = 12.sp, color = ex.color)
-                                        trend?.let {
-                                            val dotLabel = when (it.trend) {
-                                                TrendState.PROGRESSING -> "🟢"
-                                                TrendState.STAGNANT    -> "🟡"
-                                                TrendState.FATIGUE     -> "🔴"
-                                            }
-                                            Text(dotLabel, fontSize = 10.sp)
-                                        }
+                                        trend?.let { Text(when(it.trend) { TrendState.PROGRESSING -> "🟢"; TrendState.STAGNANT -> "🟡"; TrendState.FATIGUE -> "🟠" }, fontSize = 10.sp) }
                                     }
                                 }
-
-                                // CAMBIO 3: métrica mostrada según tipo
                                 Column(horizontalAlignment = Alignment.End) {
                                     if (ex.isStrengthFocus) {
-                                        val e1rm = trend?.latestMetric ?: 0f
-                                        Text("${e1rm.roundToInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 16.sp)
-                                        Text("E1RM", fontSize = 11.sp, color = TextSec)
+                                        Text("${(trend?.latestMetric ?: 0f).roundToInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 15.sp)
+                                        Text("E1RM", fontSize = 10.sp, color = TextSec)
                                     } else {
-                                        val score = trend?.latestMetric ?: 0f
-                                        val bestSet = vm.historyFor(ex.id)
-                                            .filter { vm.savedSessions.lastOrNull { s -> s.sets.any { it.exerciseId == ex.id } }?.date == it.first }
-                                            .maxByOrNull { it.second.reps * it.second.weightKg }?.second
-                                        if (bestSet != null) {
-                                            Text("${bestSet.reps}r×${bestSet.weightKg.toInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 14.sp)
-                                        } else {
-                                            Text("${score.roundToInt()}", fontWeight = FontWeight.Black, color = Accent, fontSize = 16.sp)
-                                        }
-                                        Text("mejor set", fontSize = 11.sp, color = TextSec)
+                                        val ld = vm.savedSessions.lastOrNull { s -> s.sets.any { it.exerciseId == ex.id } }?.date
+                                        val bs = vm.historyFor(ex.id).filter { it.first == ld }.maxByOrNull { it.second.reps * it.second.weightKg }?.second
+                                        if (bs != null) Text("${bs.reps}r×${bs.weightKg.toInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 13.sp)
+                                        Text("mejor set", fontSize = 10.sp, color = TextSec)
                                     }
                                     trend?.let {
                                         if (it.pctChange != 0f) {
                                             val sign = if (it.pctChange > 0) "+" else ""
-                                            val c = if (it.pctChange > 0) GreenOk else RedBad
-                                            Text("$sign${it.pctChange.roundToInt()}%", fontSize = 10.sp, color = c, fontWeight = FontWeight.Bold)
+                                            Text("$sign${it.pctChange.roundToInt()}%", fontSize = 10.sp,
+                                                color = if (it.pctChange > 0) GreenOk else RedBad, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -1001,94 +1210,68 @@ fun ProgressScreen(vm: GymViewModel) {
             }
         }
     } else {
-        ExerciseDetailScreen(vm, selectedExercise!!) { selectedExercise = null }
+        ExerciseDetailScreen(vm, selectedEx!!) { selectedEx = null }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EXERCISE DETAIL — CAMBIO 3: adaptado según tipo fuerza/hipertrofia
+// EXERCISE DETAIL SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Unit) {
-    val isStrength = exercise.isStrengthFocus
+    val isS      = exercise.isStrengthFocus
+    val e1rmData = vm.e1rmProgressionFor(exercise.id)
+    val hyData   = vm.hypertrophyProgressionFor(exercise.id)
+    val volData  = vm.volumeProgressionFor(exercise.id)
+    val repsData = vm.repsProgressionFor(exercise.id)
+    val wData    = vm.weightProgressionFor(exercise.id)
+    val byDate   = vm.historyFor(exercise.id).groupBy { it.first }
+    val trend    = vm.trendFor(exercise.id)
+    val maxWeight = vm.prFor(exercise.id)
+    val maxReps   = vm.maxRepsFor(exercise.id)
+    val bestVol   = volData.maxOfOrNull { it.second } ?: 0f
+    var chartTab  by remember { mutableStateOf(0) }
 
-    val e1rmData   = vm.e1rmProgressionFor(exercise.id)
-    val hyData     = vm.hypertrophyProgressionFor(exercise.id)
-    val volumeData = vm.volumeProgressionFor(exercise.id)
-    val repsData   = vm.repsProgressionFor(exercise.id)
-    val weightData = vm.weightProgressionFor(exercise.id)
-    val byDate     = vm.historyFor(exercise.id).groupBy { it.first }
-    val trend      = vm.trendFor(exercise.id)
-
-    val maxWeight        = vm.prFor(exercise.id)
-    val maxReps          = vm.maxRepsFor(exercise.id)
-    val bestVolSession   = volumeData.maxOfOrNull { it.second } ?: 0f
-
-    // CAMBIO 3: gráfica principal según tipo
-    // Fuerza: 0=E1RM, 1=Vol, 2=Peso, 3=Reps
-    // Hipertrofia: 0=MejorSet(reps×kg), 1=Vol, 2=Peso, 3=Reps
-    var chartTab by remember { mutableStateOf(0) }
-
-    LazyColumn(Modifier.fillMaxSize().background(Black), contentPadding = PaddingValues(bottom = 32.dp)) {
-
-        // Header
+    LazyColumn(Modifier.fillMaxSize().background(Surface0), contentPadding = PaddingValues(bottom = 40.dp)) {
         item {
             Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp, end = 20.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrim) }
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(exercise.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrim)
-                        if (isStrength) {
-                            Surface(shape = RoundedCornerShape(4.dp), color = Accent.copy(0.15f)) {
-                                Text("FUERZA", fontSize = 9.sp, color = Accent, fontWeight = FontWeight.Black,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-                            }
-                        }
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(exercise.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrim)
+                        if (isS) TypeBadge("FUERZA", Accent)
+                        if (exercise.isCustom) TypeBadge("CUSTOM", Blue)
                     }
-                    Text("${exercise.muscle} · ${exercise.routine}", fontSize = 13.sp, color = exercise.color)
+                    Text("${exercise.muscle} · ${exercise.routine}", fontSize = 12.sp, color = exercise.color)
                 }
             }
         }
 
-        // Trend status banner — CAMBIO 3: texto adaptado
         trend?.let { t ->
             item {
-                val metricLabel = if (isStrength) "E1RM" else "mejor set"
-                val metricValue = if (isStrength) "${t.latestMetric.roundToInt()}kg"
-                else {
-                    val lastDate = vm.savedSessions.lastOrNull { s -> s.sets.any { it.exerciseId == exercise.id } }?.date
-                    val bestSet = vm.historyFor(exercise.id).filter { it.first == lastDate }
-                        .maxByOrNull { it.second.reps * it.second.weightKg }?.second
-                    if (bestSet != null) "${bestSet.reps}r×${bestSet.weightKg.toInt()}kg" else "${t.latestMetric.roundToInt()}"
+                val (bg, borderC, icon, status, sub) = when (t.trend) {
+                    TrendState.PROGRESSING -> listOf(GreenOk.copy(0.07f),   GreenOk.copy(0.25f),   "🟢", "Progresando",    "+${t.pctChange.roundToInt()}% vs últimas 5")
+                    TrendState.STAGNANT    -> listOf(YellowWarn.copy(0.07f), YellowWarn.copy(0.25f), "🟡", "Mantenimiento",      "${t.pctChange.roundToInt()}% vs últimas 5")
+                    TrendState.FATIGUE     -> listOf(OrangeStk.copy(0.07f),  OrangeStk.copy(0.25f),  "🟠", "Fatiga",   "${t.pctChange.roundToInt()}% vs últimas 5")
                 }
-
-                val (bgColor, icon, statusText, subText) = when (t.trend) {
-                    TrendState.PROGRESSING -> listOf(GreenOk.copy(0.1f), "🟢", "Progresando", "+${t.pctChange.roundToInt()}% vs media últimas 5 sesiones")
-                    TrendState.STAGNANT    -> listOf(YellowWarn.copy(0.1f), "🟡", "Estancado", "${t.pctChange.roundToInt()}% vs media últimas 5 sesiones")
-                    TrendState.FATIGUE     -> listOf(RedBad.copy(0.1f), "🔴", "Posible fatiga", "${t.pctChange.roundToInt()}% vs media últimas 5 sesiones")
-                }
-                val borderColor = when (t.trend) {
-                    TrendState.PROGRESSING -> GreenOk.copy(0.4f)
-                    TrendState.STAGNANT    -> YellowWarn.copy(0.4f)
-                    TrendState.FATIGUE     -> RedBad.copy(0.4f)
-                }
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = bgColor as Color,
-                    border = BorderStroke(1.dp, borderColor as Color)) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(icon as String, fontSize = 22.sp)
-                        Column {
-                            Text(statusText as String, fontWeight = FontWeight.Bold, color = TextPrim, fontSize = 14.sp)
-                            Text(subText as String, fontSize = 12.sp, color = TextSec)
+                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(14.dp),
+                    color = bg as Color, border = BorderStroke(1.dp, borderC as Color)) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(icon as String, fontSize = 18.sp)
+                        Column(Modifier.weight(1f)) {
+                            Text(status as String, fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 13.sp)
+                            Text(sub as String, fontSize = 11.sp, color = TextSec)
                         }
-                        Spacer(Modifier.weight(1f))
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(metricValue, fontSize = 18.sp, fontWeight = FontWeight.Black, color = Accent)
-                            Text(metricLabel, fontSize = 10.sp, color = TextSec)
+                            val v = if (isS) "${t.latestMetric.roundToInt()}kg" else {
+                                val ld = vm.savedSessions.lastOrNull { s -> s.sets.any { it.exerciseId == exercise.id } }?.date
+                                val bs = vm.historyFor(exercise.id).filter { it.first == ld }.maxByOrNull { it.second.reps * it.second.weightKg }?.second
+                                if (bs != null) "${bs.reps}r×${bs.weightKg.toInt()}kg" else "${t.latestMetric.roundToInt()}"
+                            }
+                            Text(v, fontSize = 16.sp, fontWeight = FontWeight.Black, color = Accent)
+                            Text(if (isS) "E1RM actual" else "mejor set", fontSize = 9.sp, color = TextSec)
                         }
                     }
                 }
@@ -1096,289 +1279,161 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
             }
         }
 
-        // PR Cards — CAMBIO 3: fuerza muestra E1RM, hipertrofia muestra mejor set
         item {
-            Text("RÉCORDS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                color = TextSec, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            SectionLabel("RÉCORDS")
+            val bsEver = vm.historyFor(exercise.id).maxByOrNull { it.second.reps * it.second.weightKg }?.second
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (isS) PRCard("🏆 E1RM", "${vm.allTimeE1RMFor(exercise.id).roundToInt()} kg", "Histórico", Modifier.weight(1f))
+                else     PRCard("🏆 Mejor set", if (bsEver != null) "${bsEver.reps}r×${bsEver.weightKg.toInt()}kg" else "—", "reps × peso", Modifier.weight(1f))
+                PRCard("🏋️ Peso", "${maxWeight} kg", "Máximo", Modifier.weight(1f))
+            }
             Spacer(Modifier.height(8.dp))
-            if (isStrength) {
-                val allTimeE1RM = vm.allTimeE1RMFor(exercise.id)
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PRCard("🏆 E1RM", "${allTimeE1RM.roundToInt()} kg", "Histórico", Modifier.weight(1f))
-                    PRCard("🏋️ Peso", "${maxWeight} kg", "Máximo", Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PRCard("🔁 Reps", "$maxReps", "Máximo total", Modifier.weight(1f))
-                    PRCard("📈 Vol.", "${bestVolSession.roundToInt()} kg", "Mejor sesión", Modifier.weight(1f))
-                }
-            } else {
-                // Hipertrofia: mejor set (reps×kg), peso máx, reps máx, volumen
-                val bestScore = vm.allTimeHypertrophyScoreFor(exercise.id)
-                val bestSetEver = vm.historyFor(exercise.id)
-                    .maxByOrNull { it.second.reps * it.second.weightKg }?.second
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PRCard("🏆 Mejor set",
-                        if (bestSetEver != null) "${bestSetEver.reps}r×${bestSetEver.weightKg.toInt()}kg" else "—",
-                        "reps × peso", Modifier.weight(1f))
-                    PRCard("🏋️ Peso", "${maxWeight} kg", "Máximo", Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PRCard("🔁 Reps", "$maxReps", "Máximo total", Modifier.weight(1f))
-                    PRCard("📈 Vol.", "${bestVolSession.roundToInt()} kg", "Mejor sesión", Modifier.weight(1f))
-                }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PRCard("🔁 Reps", "$maxReps", "Máximo total", Modifier.weight(1f))
+                PRCard("📈 Vol.", "${bestVol.roundToInt()} kg", "Mejor sesión", Modifier.weight(1f))
             }
             Spacer(Modifier.height(16.dp))
         }
 
-        // Chart selector tabs — CAMBIO 3: primera tab distinta según tipo
         item {
-            Text("GRÁFICAS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                color = TextSec, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-            Spacer(Modifier.height(8.dp))
+            SectionLabel("GRÁFICAS")
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChipFlex(if (isStrength) "E1RM" else "Mejor set", chartTab == 0, Modifier.weight(1f)) { chartTab = 0 }
-                FilterChipFlex("Vol.",   chartTab == 1, Modifier.weight(1f)) { chartTab = 1 }
-                FilterChipFlex("Peso",   chartTab == 2, Modifier.weight(1f)) { chartTab = 2 }
-                FilterChipFlex("Reps",   chartTab == 3, Modifier.weight(1f)) { chartTab = 3 }
+                ChipFlex(if (isS) "E1RM" else "Mejor set", chartTab == 0, Modifier.weight(1f)) { chartTab = 0 }
+                ChipFlex("Vol.",  chartTab == 1, Modifier.weight(1f)) { chartTab = 1 }
+                ChipFlex("Peso",  chartTab == 2, Modifier.weight(1f)) { chartTab = 2 }
+                ChipFlex("Reps",  chartTab == 3, Modifier.weight(1f)) { chartTab = 3 }
             }
-            Spacer(Modifier.height(12.dp))
-        }
-
-        // Main chart — CAMBIO 3: tab 0 usa e1rm para fuerza, hyData para hipertrofia
-        item {
-            val data  = when (chartTab) {
-                0    -> if (isStrength) e1rmData else hyData
-                1    -> volumeData
-                2    -> weightData
-                else -> repsData
-            }
-            val unit  = when (chartTab) {
-                0    -> if (isStrength) "kg" else ""
-                1    -> "kg·r"
-                2    -> "kg"
-                else -> "r"
-            }
-            val label = when (chartTab) {
-                0    -> if (isStrength) "E1RM estimado por sesión (mejor set)"
-                else "Mejor set (reps × peso) por sesión"
-                1    -> "Volumen total por sesión (kg × reps)"
-                2    -> "Peso máximo por sesión"
-                else -> "Reps totales por sesión"
-            }
-
-            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(16.dp), color = CardBg) {
+            Spacer(Modifier.height(10.dp))
+            val data  = when (chartTab) { 0 -> if (isS) e1rmData else hyData; 1 -> volData; 2 -> wData; else -> repsData }
+            val unit  = when (chartTab) { 0 -> if (isS) "kg" else ""; 1 -> "kg·r"; 2 -> "kg"; else -> "r" }
+            val label = when (chartTab) { 0 -> if (isS) "E1RM estimado por sesión" else "Mejor set por sesión"; 1 -> "Volumen total por sesión"; 2 -> "Peso máximo por sesión"; else -> "Reps totales por sesión" }
+            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), color = Surface1) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSec,
-                        modifier = Modifier.padding(bottom = 10.dp))
-                    if (data.size < 2) {
-                        Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                            Text("Necesitas al menos 2 sesiones\npara ver la gráfica",
-                                color = TextSec, textAlign = TextAlign.Center, fontSize = 13.sp)
-                        }
-                    } else {
-                        LineChart(data, exercise.color, unit, Modifier.fillMaxWidth().height(160.dp))
-                    }
+                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSec, modifier = Modifier.padding(bottom = 10.dp))
+                    if (data.size < 2) Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                        Text("Necesitas al menos 2 sesiones\npara ver la gráfica", color = TextSec, textAlign = TextAlign.Center, fontSize = 12.sp)
+                    } else LineChart(data, exercise.color, unit, Modifier.fillMaxWidth().height(160.dp))
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
         }
 
-        // Volume bar chart
-        if (volumeData.size >= 2) {
+        if (volData.size >= 2) {
             item {
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(16.dp), color = CardBg) {
+                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), color = Surface1) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("Volumen por sesión — barras", fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                            color = TextSec, modifier = Modifier.padding(bottom = 10.dp))
-                        BarChart(volumeData, exercise.color, Modifier.fillMaxWidth().height(110.dp))
+                        Text("Volumen por sesión", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSec, modifier = Modifier.padding(bottom = 10.dp))
+                        BarChart(volData, exercise.color, Modifier.fillMaxWidth().height(90.dp))
                     }
                 }
                 Spacer(Modifier.height(16.dp))
             }
         }
 
-        // Full log — CAMBIO 3: hipertrofia no muestra E1RM, muestra reps×kg score
-        item {
-            Text("HISTORIAL COMPLETO", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                color = TextSec, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-        }
-
-        byDate.entries.sortedByDescending { it.key }.forEach { (date, entries) ->
+        item { SectionLabel("HISTORIAL COMPLETO") }
+        val sortedHistory = byDate.entries.sortedByDescending { it.key }
+        sortedHistory.forEachIndexed { idx, (date, entries) ->
             item(key = date) {
-                val sessionSets     = entries.map { it.second }
-                val bestSetE1RM     = bestE1RM(sessionSets)
-                val bestHyScore     = bestHypertrophyScore(sessionSets)
-                val sessionVol      = sessionSets.sumOf { (it.weightKg * it.reps).toDouble() }.toInt()
-                val bestHySet       = sessionSets.maxByOrNull { it.reps * it.weightKg }
+                CollapsibleHistoryEntry(
+                    date = date,
+                    entries = entries,
+                    isS = isS,
+                    maxWeight = maxWeight,
+                    isInitiallyExpanded = idx == 0  // first (most recent) open by default
+                )
+            }
+        }
+    }
+}
 
-                Surface(shape = RoundedCornerShape(14.dp), color = CardBg,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    Column(Modifier.padding(14.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(formatDate(date), fontWeight = FontWeight.Bold, color = TextPrim)
-                            Column(horizontalAlignment = Alignment.End) {
-                                if (isStrength) {
-                                    Text("E1RM ${bestSetE1RM.roundToInt()}kg", fontSize = 11.sp, color = Accent, fontWeight = FontWeight.Bold)
-                                } else {
-                                    // CAMBIO 3: mostrar mejor set como "Xr×Ykg"
-                                    Text(
-                                        if (bestHySet != null) "Mejor ${bestHySet.reps}r×${bestHySet.weightKg.toInt()}kg"
-                                        else "",
-                                        fontSize = 11.sp, color = Accent, fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Text("Vol. ${sessionVol}kg", fontSize = 10.sp, color = TextSec)
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        entries.forEachIndexed { i, (_, set) ->
-                            val setE1RM    = estimatedOneRM(set.weightKg, set.reps)
-                            val setHyScore = set.reps * set.weightKg
-                            val isTopSet   = if (isStrength) (setE1RM == bestSetE1RM && bestSetE1RM > 0f)
-                            else (setHyScore == bestHyScore && bestHyScore > 0f)
-                            val isPRWeight = set.weightKg == maxWeight && maxWeight > 0f
+// ─────────────────────────────────────────────────────────────────────────────
+// COLLAPSIBLE HISTORY ENTRY  (used in ExerciseDetailScreen)
+// ─────────────────────────────────────────────────────────────────────────────
 
-                            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(24.dp).background(Border, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
-                                    Text("${i+1}", fontSize = 10.sp, color = TextSec, fontWeight = FontWeight.Bold)
-                                }
-                                Spacer(Modifier.width(10.dp))
-                                Text("${set.reps} reps", fontSize = 14.sp, color = TextPrim, modifier = Modifier.weight(1f))
-                                Text(
-                                    if (set.weightKg == 0f) "Peso corporal" else "${set.weightKg}kg",
-                                    fontSize = 14.sp,
-                                    color = if (isPRWeight) Accent else TextSec,
-                                    fontWeight = if (isPRWeight) FontWeight.Black else FontWeight.Normal
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                if (isStrength) {
-                                    Text("→${setE1RM.roundToInt()}", fontSize = 11.sp, color = if (isTopSet) Accent else TextTert)
-                                } else {
-                                    // CAMBIO 3: score reps×kg en lugar de E1RM
-                                    Text("=${setHyScore.roundToInt()}", fontSize = 11.sp, color = if (isTopSet) Accent else TextTert)
-                                }
-                                if (isTopSet) { Spacer(Modifier.width(3.dp)); Text("★", fontSize = 11.sp, color = Accent) }
+@Composable
+fun CollapsibleHistoryEntry(
+    date: String,
+    entries: List<Pair<String, WorkoutSet>>,
+    isS: Boolean,
+    maxWeight: Float,
+    isInitiallyExpanded: Boolean = false
+) {
+    var expanded by remember { mutableStateOf(isInitiallyExpanded) }
+    val ss  = entries.map { it.second }
+    val bE  = bestE1RM(ss)
+    val bH  = bestHypertrophyScore(ss)
+    val bHS = ss.maxByOrNull { it.reps * it.weightKg }
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Surface1,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Column {
+            // Header row — always visible, tap to expand/collapse
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(formatDate(date), fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 13.sp)
+                    Text("${ss.size} series · Vol. ${ss.sumOf { (it.weightKg * it.reps).toDouble() }.toInt()}kg",
+                        fontSize = 10.sp, color = TextSec)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        if (isS) Text("E1RM ${bE.roundToInt()}kg", fontSize = 10.sp, color = Accent, fontWeight = FontWeight.Bold)
+                        else if (bHS != null) Text("${bHS.reps}r×${bHS.weightKg.toInt()}kg", fontSize = 10.sp, color = Accent, fontWeight = FontWeight.Bold)
+                    }
+                    Icon(
+                        if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null, tint = TextTert, modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            // Expandable detail
+            AnimatedVisibility(visible = expanded) {
+                Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp)) {
+                    HorizontalDivider(color = Border)
+                    Spacer(Modifier.height(8.dp))
+                    entries.forEachIndexed { i, (_, set) ->
+                        val e1  = estimatedOneRM(set.weightKg, set.reps)
+                        val hy  = set.reps * set.weightKg
+                        val top = if (isS) (e1 == bE && bE > 0f) else (hy == bH && bH > 0f)
+                        val pr  = set.weightKg == maxWeight && maxWeight > 0f
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                Modifier.size(22.dp).background(Surface3, RoundedCornerShape(5.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("${i+1}", fontSize = 9.sp, color = TextSec, fontWeight = FontWeight.Bold)
                             }
+                            Spacer(Modifier.width(8.dp))
+                            Text("${set.reps} reps", fontSize = 13.sp, color = TextPrim, modifier = Modifier.weight(1f))
+                            Text(
+                                if (set.weightKg == 0f) "PC" else "${set.weightKg}kg",
+                                fontSize = 13.sp,
+                                color = if (pr) Accent else TextSec,
+                                fontWeight = if (pr) FontWeight.Black else FontWeight.Normal
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                if (isS) "→${e1.roundToInt()}" else "=${hy.roundToInt()}",
+                                fontSize = 10.sp, color = if (top) Accent else TextTert
+                            )
+                            if (top) { Spacer(Modifier.width(2.dp)); Text("★", fontSize = 9.sp, color = Accent) }
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PR CARD
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-fun PRCard(label: String, value: String, sublabel: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(14.dp), color = CardBg,
-        border = BorderStroke(1.dp, Accent.copy(0.2f))) {
-        Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, fontSize = 12.sp, color = TextSec, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black, color = Accent)
-            Text(sublabel, fontSize = 10.sp, color = TextTert)
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CHARTS
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-fun LineChart(
-    data: List<Pair<String, Float>>,
-    color: Color,
-    unit: String,
-    modifier: Modifier = Modifier
-) {
-    if (data.size < 2) return
-    val values = data.map { it.second }
-    val minV   = values.min()
-    val maxV   = values.max()
-    val range  = if (maxV == minV) 1f else maxV - minV
-    val maxIdx = values.indexOf(maxV)
-
-    Box(modifier) {
-        Canvas(Modifier.fillMaxSize()) {
-            val w     = size.width
-            val h     = size.height
-            val padT  = 16f
-            val padB  = 28f
-            val drawH = h - padT - padB
-            val stepX = w / (data.size - 1).toFloat()
-
-            fun xAt(i: Int)   = i * stepX
-            fun yAt(v: Float) = padT + drawH * (1f - (v - minV) / range)
-
-            val fillPath = Path().apply {
-                moveTo(xAt(0), yAt(values[0]))
-                for (i in 1 until data.size) {
-                    val cx = (xAt(i - 1) + xAt(i)) / 2f
-                    cubicTo(cx, yAt(values[i-1]), cx, yAt(values[i]), xAt(i), yAt(values[i]))
-                }
-                lineTo(xAt(data.size - 1), h); lineTo(xAt(0), h); close()
-            }
-            drawPath(fillPath, Brush.verticalGradient(
-                colors = listOf(color.copy(alpha = 0.4f), Color.Transparent),
-                startY = padT, endY = h))
-
-            val linePath = Path().apply {
-                moveTo(xAt(0), yAt(values[0]))
-                for (i in 1 until data.size) {
-                    val cx = (xAt(i - 1) + xAt(i)) / 2f
-                    cubicTo(cx, yAt(values[i-1]), cx, yAt(values[i]), xAt(i), yAt(values[i]))
-                }
-            }
-            drawPath(linePath, color, style = Stroke(width = 3f, cap = StrokeCap.Round))
-
-            data.indices.forEach { i ->
-                val isMax = i == maxIdx
-                drawCircle(color, radius = if (isMax) 7f else 5f, center = Offset(xAt(i), yAt(values[i])))
-                drawCircle(Color(0xFF242426), radius = if (isMax) 4f else 3f, center = Offset(xAt(i), yAt(values[i])))
-            }
-        }
-
-        Row(Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${values.first().roundToInt()}$unit", fontSize = 10.sp, color = TextSec)
-            if (maxIdx != 0 && maxIdx != data.size - 1)
-                Text("${maxV.roundToInt()}$unit ★", fontSize = 10.sp, color = color, fontWeight = FontWeight.Bold)
-            Text("${values.last().roundToInt()}$unit", fontSize = 10.sp, color = TextPrim, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-fun BarChart(data: List<Pair<String, Float>>, color: Color, modifier: Modifier = Modifier) {
-    if (data.isEmpty()) return
-    val maxV   = data.maxOf { it.second }.let { if (it == 0f) 1f else it }
-    val maxVal = data.maxOf { it.second }
-
-    Canvas(modifier) {
-        val w    = size.width
-        val h    = size.height - 4f
-        val barW = (w / data.size) * 0.55f
-        val gap  = (w / data.size) * 0.45f
-
-        data.forEachIndexed { i, (_, value) ->
-            val barH  = (value / maxV) * h
-            val left  = i * (barW + gap) + gap / 2f
-            val top   = h - barH
-            val alpha = if (value == maxVal) 1f else 0.45f
-            drawRoundRect(
-                color        = color.copy(alpha = alpha),
-                topLeft      = Offset(left, top),
-                size         = Size(barW, barH),
-                cornerRadius = CornerRadius(barW / 2f, barW / 2f)
-            )
         }
     }
 }
@@ -1393,46 +1448,39 @@ fun SessionScreen(vm: GymViewModel, onBack: () -> Unit, onSave: () -> Unit) {
     var showDatePicker by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
-        val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = try {
-                LocalDate.parse(vm.sessionDate).toEpochDay() * 86_400_000L
-            } catch (e: Exception) { System.currentTimeMillis() }
+        val ps = rememberDatePickerState(
+            initialSelectedDateMillis = try { LocalDate.parse(vm.sessionDate).toEpochDay() * 86_400_000L } catch (e: Exception) { System.currentTimeMillis() }
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    pickerState.selectedDateMillis?.let { millis ->
-                        vm.sessionDate = LocalDate.ofEpochDay(millis / 86_400_000L).toString()
-                    }
+                    ps.selectedDateMillis?.let { vm.sessionDate = LocalDate.ofEpochDay(it / 86_400_000L).toString() }
                     showDatePicker = false
                 }) { Text("OK", color = Accent) }
             },
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancelar", color = TextSec) } },
-            colors = DatePickerDefaults.colors(containerColor = DarkSurf)
+            colors = DatePickerDefaults.colors(containerColor = Surface2)
         ) {
-            DatePicker(state = pickerState, colors = DatePickerDefaults.colors(
-                containerColor = DarkSurf, titleContentColor = TextPrim,
-                headlineContentColor = Accent, weekdayContentColor = TextSec,
-                dayContentColor = TextPrim, selectedDayContainerColor = Accent,
-                selectedDayContentColor = Black, todayContentColor = Accent,
-                todayDateBorderColor = Accent))
+            DatePicker(state = ps, colors = DatePickerDefaults.colors(
+                containerColor = Surface2, titleContentColor = TextPrim, headlineContentColor = Accent,
+                weekdayContentColor = TextSec, dayContentColor = TextPrim,
+                selectedDayContainerColor = Accent, selectedDayContentColor = Black,
+                todayContentColor = Accent, todayDateBorderColor = Accent))
         }
     }
 
-    Scaffold(
-        containerColor = Black,
+    Scaffold(containerColor = Surface0,
         topBar = {
-            TopAppBar(
-                title = { Text("SESIÓN", fontWeight = FontWeight.Bold, color = TextPrim) },
+            TopAppBar(title = { Text("SESIÓN", fontWeight = FontWeight.Bold, color = TextPrim) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrim) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Black)
-            )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Surface0))
         },
         bottomBar = {
-            if (vm.sets.isNotEmpty()) {
+            AnimatedVisibility(visible = vm.sets.isNotEmpty(),
+                enter = slideInVertically(initialOffsetY = { it }), exit = slideOutVertically(targetOffsetY = { it })) {
                 Box(Modifier.padding(16.dp)) {
-                    Button(onClick = onSave, modifier = Modifier.fillMaxWidth().height(56.dp),
+                    Button(onClick = onSave, modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Black)) {
                         Icon(Icons.Default.Save, null); Spacer(Modifier.width(8.dp))
@@ -1440,48 +1488,40 @@ fun SessionScreen(vm: GymViewModel, onBack: () -> Unit, onSave: () -> Unit) {
                     }
                 }
             }
-        }
-    ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-
+        }) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                Surface(onClick = { showDatePicker = true }, shape = RoundedCornerShape(14.dp),
-                    color = CardBg, border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
+                Surface(onClick = { showDatePicker = true }, shape = RoundedCornerShape(14.dp), color = Surface1,
+                    border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Icon(Icons.Default.CalendarMonth, null, tint = Accent, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.CalendarMonth, null, tint = Accent, modifier = Modifier.size(16.dp))
                             Column {
-                                Text("Fecha de la sesión", fontSize = 11.sp, color = TextSec)
-                                Text(
-                                    if (vm.sessionDate == LocalDate.now().toString()) "Hoy - ${formatDate(vm.sessionDate)}"
-                                    else formatDate(vm.sessionDate),
-                                    fontWeight = FontWeight.Bold, color = TextPrim
-                                )
+                                Text("Fecha", fontSize = 10.sp, color = TextSec)
+                                Text(if (vm.sessionDate == LocalDate.now().toString()) "Hoy — ${formatDate(vm.sessionDate)}" else formatDate(vm.sessionDate),
+                                    fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 14.sp)
                             }
                         }
-                        Text("Cambiar", fontSize = 12.sp, color = Accent, fontWeight = FontWeight.Bold)
+                        Text("Cambiar", fontSize = 11.sp, color = Accent, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
-
             if (vm.sets.isEmpty()) {
-                item {
-                    Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
-                        Text("Sin series registradas aún", color = TextSec)
-                    }
-                }
+                item { Box(Modifier.fillMaxWidth().padding(top = 50.dp), contentAlignment = Alignment.Center) {
+                    Text("Sin series — vuelve a Ejercicios para añadir", color = TextSec, textAlign = TextAlign.Center)
+                }}
             } else {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        StatCard("SERIES", "${vm.sets.size}",             Modifier.weight(1f))
-                        StatCard("REPS",   "${vm.totalReps}",             Modifier.weight(1f))
+                        StatCard("SERIES", "${vm.sets.size}", Modifier.weight(1f))
+                        StatCard("REPS",   "${vm.totalReps}", Modifier.weight(1f))
                         StatCard("VOL.",   "${vm.totalVolume.toInt()}kg", Modifier.weight(1f))
                     }
                 }
-                vm.groupedSets.forEach { (name, exSets) ->
-                    item(key = name) { ExerciseBlock(name, exSets, onDelete = { vm.deleteSet(it) }) }
+                vm.groupedSets.forEach { (name, sets) ->
+                    item(key = name) { ExerciseBlock(name, sets) { vm.deleteSet(it) } }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
@@ -1496,61 +1536,48 @@ fun SessionScreen(vm: GymViewModel, onBack: () -> Unit, onSave: () -> Unit) {
 @Composable
 fun SummaryScreen(vm: GymViewModel, onBack: () -> Unit) {
     val lastSession = vm.savedSessions.lastOrNull()
-
-    Scaffold(
-        containerColor = Black,
-        bottomBar = {
-            Box(Modifier.padding(16.dp)) {
-                Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Black)) {
-                    Text("VOLVER AL INICIO", fontWeight = FontWeight.Bold)
-                }
+    Scaffold(containerColor = Surface0,
+        bottomBar = { Box(Modifier.padding(16.dp)) {
+            Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Black)) {
+                Text("VOLVER AL INICIO", fontWeight = FontWeight.Bold)
             }
-        }
-    ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally) {
+        }}) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             item {
                 Spacer(Modifier.height(8.dp))
-                Icon(Icons.Default.EmojiEvents, null, tint = Accent, modifier = Modifier.size(64.dp))
-                Spacer(Modifier.height(12.dp))
-                Text("¡SESIÓN GUARDADA!", fontSize = 26.sp, fontWeight = FontWeight.Black,
-                    color = TextPrim, textAlign = TextAlign.Center)
-                lastSession?.let { Text(formatDate(it.date), fontSize = 14.sp, color = TextSec, modifier = Modifier.padding(top = 4.dp)) }
+                Text("🏆", fontSize = 48.sp); Spacer(Modifier.height(6.dp))
+                Text("¡SESIÓN GUARDADA!", fontSize = 22.sp, fontWeight = FontWeight.Black, color = TextPrim, textAlign = TextAlign.Center)
+                lastSession?.let { Text(formatDate(it.date), fontSize = 13.sp, color = TextSec) }
             }
-            lastSession?.let { session ->
+            lastSession?.let { s ->
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        BigStat("SERIES", "${session.sets.size}", Modifier.weight(1f))
-                        BigStat("REPS",   "${session.sets.sumOf { it.reps }}", Modifier.weight(1f))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        BigStat("SERIES", "${s.sets.size}", Modifier.weight(1f))
+                        BigStat("REPS", "${s.sets.sumOf { it.reps }}", Modifier.weight(1f))
                     }
                 }
-                item { BigStat("VOLUMEN TOTAL", "${session.sets.sumOf { (it.weightKg * it.reps).toDouble() }.toInt()} KG", Modifier.fillMaxWidth()) }
-                item { Text("POR EJERCICIO", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSec, modifier = Modifier.fillMaxWidth()) }
-                session.sets.groupBy { it.exerciseName }.forEach { (name, exSets) ->
+                item { BigStat("VOLUMEN TOTAL", "${s.sets.sumOf { (it.weightKg * it.reps).toDouble() }.toInt()} KG", Modifier.fillMaxWidth()) }
+                item { SectionLabel("POR EJERCICIO") }
+                s.sets.groupBy { it.exerciseName }.forEach { (name, exSets) ->
                     item(key = name) {
-                        val ex = EXERCISES.find { it.name == name }
-                        Surface(shape = RoundedCornerShape(14.dp), color = CardBg) {
+                        val ex = vm.allExercises.find { it.name == name }
+                        Surface(shape = RoundedCornerShape(14.dp), color = Surface1) {
                             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(name, fontWeight = FontWeight.SemiBold, color = TextPrim)
-                                    Text("${exSets.size} series - ${exSets.sumOf { it.reps }} reps", fontSize = 13.sp, color = TextSec)
+                                    Text(name, fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 14.sp)
+                                    Text("${exSets.size} series · ${exSets.sumOf { it.reps }} reps", fontSize = 12.sp, color = TextSec)
                                 }
-                                // CAMBIO 3: summary muestra métrica según tipo
                                 Column(horizontalAlignment = Alignment.End) {
-                                    if (ex?.isStrengthFocus == true) {
-                                        val bestE1RM = bestE1RM(exSets)
-                                        Text("E1RM ${bestE1RM.roundToInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 15.sp)
-                                        Text("${exSets.maxOf { it.weightKg }}kg max", fontSize = 11.sp, color = TextSec)
-                                    } else {
-                                        val bestSet = exSets.maxByOrNull { it.reps * it.weightKg }
-                                        if (bestSet != null) {
-                                            Text("${bestSet.reps}r×${bestSet.weightKg.toInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 15.sp)
-                                        }
-                                        Text("${exSets.maxOf { it.weightKg }}kg max", fontSize = 11.sp, color = TextSec)
+                                    if (ex?.isStrengthFocus == true)
+                                        Text("E1RM ${bestE1RM(exSets).roundToInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 14.sp)
+                                    else {
+                                        val bs = exSets.maxByOrNull { it.reps * it.weightKg }
+                                        if (bs != null) Text("${bs.reps}r×${bs.weightKg.toInt()}kg", fontWeight = FontWeight.Black, color = Accent, fontSize = 14.sp)
                                     }
+                                    Text("${exSets.maxOf { it.weightKg }}kg max", fontSize = 11.sp, color = TextSec)
                                 }
                             }
                         }
@@ -1563,156 +1590,84 @@ fun SummaryScreen(vm: GymViewModel, onBack: () -> Unit) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED COMPONENTS
+// DIALOGS
 // ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-fun ExerciseCard(exercise: Exercise, setCount: Int, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = Modifier.aspectRatio(0.85f),
-        shape = RoundedCornerShape(16.dp), color = CardBg, border = BorderStroke(1.dp, Border)) {
-        Box {
-            Box(Modifier.fillMaxWidth().height(4.dp).background(exercise.color))
-            Column(Modifier.fillMaxSize().padding(top = 12.dp, start = 12.dp, end = 12.dp, bottom = 10.dp),
-                verticalArrangement = Arrangement.SpaceBetween) {
-                Box(Modifier.fillMaxWidth().weight(1f).background(exercise.color.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center) { Text(exercise.emoji, fontSize = 30.sp) }
-                Spacer(Modifier.height(6.dp))
-                Text(exercise.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrim,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(exercise.muscle.uppercase(), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = exercise.color)
-                    if (setCount > 0) {
-                        Surface(shape = CircleShape, color = Accent) {
-                            Text("$setCount", modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                fontSize = 10.sp, fontWeight = FontWeight.Black, color = Black)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = Modifier.height(34.dp), shape = RoundedCornerShape(50),
-        color = if (selected) Accent else CardBg,
-        border = if (selected) null else BorderStroke(1.dp, Border)) {
-        Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
-            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (selected) Black else TextSec)
-        }
-    }
-}
-
-@Composable
-fun FilterChipFlex(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = modifier.height(34.dp), shape = RoundedCornerShape(50),
-        color = if (selected) Accent else CardBg,
-        border = if (selected) null else BorderStroke(1.dp, Border)) {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (selected) Black else TextSec,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
 
 @Composable
 fun LogSetDialog(exercise: Exercise, lastSet: WorkoutSet?, onDismiss: () -> Unit, onSave: (Int, Float) -> Unit) {
     var repsText   by remember { mutableStateOf(lastSet?.reps?.toString() ?: "") }
-    var weightText by remember { mutableStateOf(lastSet?.weightKg?.let {
-        if (it == it.toLong().toFloat()) it.toLong().toString() else it.toString() } ?: "") }
-    var repsError by remember { mutableStateOf(false) }
+    var weightText by remember { mutableStateOf(lastSet?.weightKg?.let { if (it == it.toLong().toFloat()) it.toLong().toString() else it.toString() } ?: "") }
+    var repsError  by remember { mutableStateOf(false) }
+    val isS = exercise.isStrengthFocus
 
-    // CAMBIO 3: preview según tipo ejercicio
-    val isStrength = exercise.isStrengthFocus
-    val previewE1RM = remember(repsText, weightText) {
-        val r = repsText.trim().toIntOrNull() ?: 0
-        val w = weightText.trim().toFloatOrNull() ?: 0f
-        if (r > 0 && w > 0f && isStrength) estimatedOneRM(w, r) else null
+    val previewE1 = remember(repsText, weightText) {
+        val r = repsText.trim().toIntOrNull() ?: 0; val w = weightText.trim().toFloatOrNull() ?: 0f
+        if (r > 0 && w > 0f && isS) estimatedOneRM(w, r) else null
     }
-    val previewHyScore = remember(repsText, weightText) {
-        val r = repsText.trim().toIntOrNull() ?: 0
-        val w = weightText.trim().toFloatOrNull() ?: 0f
-        if (r > 0 && w > 0f && !isStrength) r * w else null
+    val previewHy = remember(repsText, weightText) {
+        val r = repsText.trim().toIntOrNull() ?: 0; val w = weightText.trim().toFloatOrNull() ?: 0f
+        if (r > 0 && w > 0f && !isS) r * w else null
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(24.dp), color = DarkSurf) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Surface(shape = RoundedCornerShape(22.dp), color = Surface2) {
+            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(exercise.name, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrim)
-                            if (isStrength) {
-                                Surface(shape = RoundedCornerShape(4.dp), color = Accent.copy(0.15f)) {
-                                    Text("FUERZA", fontSize = 8.sp, color = Accent, fontWeight = FontWeight.Black,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-                                }
-                            }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(exercise.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrim)
+                            if (isS) TypeBadge("FUERZA", Accent)
                         }
-                        Text(exercise.muscle, fontSize = 13.sp, color = exercise.color)
+                        Text(exercise.muscle, fontSize = 12.sp, color = exercise.color)
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null, tint = TextSec) }
                 }
                 if (lastSet != null) {
-                    Box(Modifier.fillMaxWidth().background(exercise.color.copy(0.1f), RoundedCornerShape(10.dp)).padding(10.dp)) {
-                        if (isStrength) {
-                            val lastE1RM = estimatedOneRM(lastSet.weightKg, lastSet.reps)
-                            Text("Última vez: ${lastSet.reps}r × ${lastSet.weightKg}kg → E1RM ${lastE1RM.roundToInt()}kg",
-                                fontSize = 13.sp, color = exercise.color)
-                        } else {
-                            val lastScore = lastSet.reps * lastSet.weightKg
-                            Text("Última vez: ${lastSet.reps}r × ${lastSet.weightKg}kg (score ${lastScore.roundToInt()})",
-                                fontSize = 13.sp, color = exercise.color)
+                    Surface(shape = RoundedCornerShape(10.dp), color = exercise.color.copy(0.07f), modifier = Modifier.fillMaxWidth()) {
+                        Text(if (isS) "Última: ${lastSet.reps}r × ${lastSet.weightKg}kg → E1RM ${estimatedOneRM(lastSet.weightKg, lastSet.reps).roundToInt()}kg"
+                        else "Última: ${lastSet.reps}r × ${lastSet.weightKg}kg (score ${(lastSet.reps * lastSet.weightKg).roundToInt()})",
+                            fontSize = 12.sp, color = exercise.color, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text("REPS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextSec)
+                        OutlinedTextField(value = repsText, onValueChange = { repsText = it; repsError = false },
+                            modifier = Modifier.fillMaxWidth(), placeholder = { Text("0", color = TextTert) },
+                            isError = repsError, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = exercise.color, unfocusedBorderColor = Border,
+                                focusedTextColor = TextPrim, unfocusedTextColor = TextPrim,
+                                cursorColor = exercise.color, focusedContainerColor = Surface1, unfocusedContainerColor = Surface1))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("PESO (KG)", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextSec)
+                        OutlinedTextField(value = weightText, onValueChange = { weightText = it },
+                            modifier = Modifier.fillMaxWidth(), placeholder = { Text("0", color = TextTert) },
+                            singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = exercise.color, unfocusedBorderColor = Border,
+                                focusedTextColor = TextPrim, unfocusedTextColor = TextPrim,
+                                cursorColor = exercise.color, focusedContainerColor = Surface1, unfocusedContainerColor = Surface1))
+                    }
+                }
+                (previewE1 ?: previewHy)?.let { v ->
+                    Surface(shape = RoundedCornerShape(10.dp), color = Accent.copy(0.06f), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (isS) "E1RM estimado" else "Score reps×peso", fontSize = 12.sp, color = TextSec)
+                            Text(if (isS) "${v.roundToInt()} kg" else "${v.roundToInt()}", fontSize = 14.sp, color = Accent, fontWeight = FontWeight.Black)
                         }
                     }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Nº REPETICIONES", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSec)
-                    OutlinedTextField(value = repsText, onValueChange = { repsText = it; repsError = false },
-                        modifier = Modifier.fillMaxWidth(), placeholder = { Text("0", color = TextTert) },
-                        isError = repsError, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = exercise.color, unfocusedBorderColor = Border,
-                            focusedTextColor = TextPrim, unfocusedTextColor = TextPrim,
-                            cursorColor = exercise.color, focusedContainerColor = CardBg, unfocusedContainerColor = CardBg))
-                    if (repsError) Text("Introduce un número válido", fontSize = 11.sp, color = Color.Red)
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("PESO (KG)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSec)
-                    OutlinedTextField(value = weightText, onValueChange = { weightText = it },
-                        modifier = Modifier.fillMaxWidth(), placeholder = { Text("0", color = TextTert) },
-                        singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = exercise.color, unfocusedBorderColor = Border,
-                            focusedTextColor = TextPrim, unfocusedTextColor = TextPrim,
-                            cursorColor = exercise.color, focusedContainerColor = CardBg, unfocusedContainerColor = CardBg))
-                }
-                // CAMBIO 3: preview de métrica según tipo
-                previewE1RM?.let { e ->
-                    Box(Modifier.fillMaxWidth().background(Accent.copy(0.08f), RoundedCornerShape(10.dp)).padding(10.dp)) {
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("E1RM estimado", fontSize = 13.sp, color = TextSec)
-                            Text("${e.roundToInt()} kg", fontSize = 14.sp, color = Accent, fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
-                previewHyScore?.let { s ->
-                    Box(Modifier.fillMaxWidth().background(exercise.color.copy(0.08f), RoundedCornerShape(10.dp)).padding(10.dp)) {
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("Score reps×peso", fontSize = 13.sp, color = TextSec)
-                            Text("${s.roundToInt()}", fontSize = 14.sp, color = exercise.color, fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
+                if (repsError) Text("Introduce un número válido", fontSize = 11.sp, color = RedBad)
                 Button(onClick = {
-                    val reps = repsText.trim().toIntOrNull()
-                    if (reps == null || reps <= 0) { repsError = true; return@Button }
-                    onSave(reps, weightText.trim().toFloatOrNull() ?: 0f)
-                }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp),
+                    val r = repsText.trim().toIntOrNull()
+                    if (r == null || r <= 0) { repsError = true; return@Button }
+                    onSave(r, weightText.trim().toFloatOrNull() ?: 0f)
+                }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Black)) {
                     Text("GUARDAR SERIE", fontWeight = FontWeight.Bold)
                 }
@@ -1722,28 +1677,165 @@ fun LogSetDialog(exercise: Exercise, lastSet: WorkoutSet?, onDismiss: () -> Unit
 }
 
 @Composable
-fun ExerciseBlock(name: String, sets: List<WorkoutSet>, onDelete: ((WorkoutSet) -> Unit)?) {
-    Surface(shape = RoundedCornerShape(16.dp), color = CardBg) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrim)
-            Text("${sets.size} series · ${sets.sumOf { it.reps }} reps · max ${sets.maxOf { it.weightKg }}kg",
-                fontSize = 13.sp, color = TextSec)
-            Spacer(Modifier.height(10.dp))
-            HorizontalDivider(color = Border)
-            Spacer(Modifier.height(6.dp))
-            sets.forEachIndexed { i, set ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(26.dp).background(Border, RoundedCornerShape(7.dp)), contentAlignment = Alignment.Center) {
-                        Text("${i+1}", fontSize = 11.sp, color = TextSec, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text("${set.reps} reps", fontSize = 15.sp, color = TextPrim, modifier = Modifier.weight(1f))
-                    Text(if (set.weightKg == 0f) "Peso corporal" else "${set.weightKg}kg",
-                        fontSize = 15.sp, color = Accent, fontWeight = FontWeight.SemiBold)
-                    if (onDelete != null) {
-                        IconButton(onClick = { onDelete(set) }, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Default.Delete, null, tint = TextTert, modifier = Modifier.size(16.dp))
+fun AddCustomExerciseDialog(vm: GymViewModel, context: Context, onDismiss: () -> Unit) {
+    var name     by remember { mutableStateOf("") }
+    var muscle   by remember { mutableStateOf(MUSCLES[1]) }
+    var routine  by remember { mutableStateOf(ROUTINES[1]) }
+    var strength by remember { mutableStateOf(false) }
+    var nameErr  by remember { mutableStateOf(false) }
+    var emoji    by remember { mutableStateOf("💪") }
+    val emojis   = listOf("💪","🏋️","🔙","🦵","🎯","🍑","❤️","⚡","🔥","🌟","🤸","🧘")
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(22.dp), color = Surface2) {
+            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Nuevo ejercicio", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrim)
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null, tint = TextSec) }
+                }
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(emojis) { e ->
+                        Surface(onClick = { emoji = e }, shape = RoundedCornerShape(10.dp),
+                            color = if (emoji == e) Accent.copy(0.18f) else Surface3,
+                            border = BorderStroke(1.dp, if (emoji == e) Accent.copy(0.4f) else Border),
+                            modifier = Modifier.size(38.dp)) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(e, fontSize = 18.sp) }
                         }
+                    }
+                }
+                OutlinedTextField(value = name, onValueChange = { name = it; nameErr = false }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Nombre del ejercicio", color = TextSec, fontSize = 12.sp) },
+                    isError = nameErr, singleLine = true, shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Accent, unfocusedBorderColor = Border,
+                        focusedTextColor = TextPrim, unfocusedTextColor = TextPrim, cursorColor = Accent,
+                        focusedContainerColor = Surface1, unfocusedContainerColor = Surface1))
+                if (nameErr) Text("El nombre no puede estar vacío", fontSize = 11.sp, color = RedBad)
+                Text("MÚSCULO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextSec, letterSpacing = 0.8.sp)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(MUSCLES.drop(1)) { m -> Chip(m, muscle == m) { muscle = m } }
+                }
+                Text("RUTINA", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextSec, letterSpacing = 0.8.sp)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(ROUTINES.drop(1)) { r -> Chip(r, routine == r) { routine = r } }
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        Text("Ejercicio de fuerza", fontSize = 14.sp, color = TextPrim)
+                        Text("Activa E1RM como métrica de progreso", fontSize = 11.sp, color = TextSec)
+                    }
+                    Switch(checked = strength, onCheckedChange = { strength = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Black, checkedTrackColor = Accent,
+                            uncheckedThumbColor = TextSec, uncheckedTrackColor = Border))
+                }
+                Button(onClick = {
+                    if (name.isBlank()) { nameErr = true; return@Button }
+                    vm.addCustomExercise(Exercise(vm.nextCustomId(), name.trim(), muscle, routine, emoji,
+                        MUSCLE_COLORS[muscle] ?: Color(0xFF8E8E93), strength, isCustom = true), context)
+                    onDismiss()
+                }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Black)) {
+                    Text("CREAR EJERCICIO", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ConfirmDeleteDialog(title: String, body: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss, containerColor = Surface2,
+        title = { Text(title, color = TextPrim, fontWeight = FontWeight.Bold) },
+        text  = { Text(body,  color = TextSec,  fontSize = 13.sp) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text("Eliminar", color = RedBad, fontWeight = FontWeight.Bold) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = TextSec) } }
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHARTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun LineChart(data: List<Pair<String, Float>>, color: Color, unit: String, modifier: Modifier = Modifier) {
+    if (data.size < 2) return
+    val values = data.map { it.second }
+    val minV   = values.min(); val maxV = values.max()
+    val range  = if (maxV == minV) 1f else maxV - minV
+    val maxIdx = values.indexOf(maxV)
+
+    Box(modifier) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width; val h = size.height
+            val padT = 16f; val padB = 28f; val dH = h - padT - padB
+            val sx = w / (data.size - 1).toFloat()
+            fun xAt(i: Int)   = i * sx
+            fun yAt(v: Float) = padT + dH * (1f - (v - minV) / range)
+            val fill = Path().apply {
+                moveTo(xAt(0), yAt(values[0]))
+                for (i in 1 until data.size) { val cx = (xAt(i-1)+xAt(i))/2f; cubicTo(cx, yAt(values[i-1]), cx, yAt(values[i]), xAt(i), yAt(values[i])) }
+                lineTo(xAt(data.size-1), h); lineTo(xAt(0), h); close()
+            }
+            drawPath(fill, Brush.verticalGradient(listOf(color.copy(0.28f), Color.Transparent), startY = padT, endY = h))
+            val line = Path().apply {
+                moveTo(xAt(0), yAt(values[0]))
+                for (i in 1 until data.size) { val cx = (xAt(i-1)+xAt(i))/2f; cubicTo(cx, yAt(values[i-1]), cx, yAt(values[i]), xAt(i), yAt(values[i])) }
+            }
+            drawPath(line, color, style = Stroke(width = 2.5f, cap = StrokeCap.Round))
+            data.indices.forEach { i ->
+                val isMax = i == maxIdx
+                drawCircle(color, radius = if (isMax) 6f else 4f, center = Offset(xAt(i), yAt(values[i])))
+                drawCircle(Surface1, radius = if (isMax) 3.5f else 2.5f, center = Offset(xAt(i), yAt(values[i])))
+            }
+        }
+        Row(Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${values.first().roundToInt()}$unit", fontSize = 10.sp, color = TextSec)
+            if (maxIdx != 0 && maxIdx != data.size-1) Text("${maxV.roundToInt()}$unit ★", fontSize = 10.sp, color = color, fontWeight = FontWeight.Bold)
+            Text("${values.last().roundToInt()}$unit", fontSize = 10.sp, color = TextPrim, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun BarChart(data: List<Pair<String, Float>>, color: Color, modifier: Modifier = Modifier) {
+    if (data.isEmpty()) return
+    val maxV   = data.maxOf { it.second }.let { if (it == 0f) 1f else it }
+    val maxVal = data.maxOf { it.second }
+    Canvas(modifier) {
+        val w = size.width; val h = size.height - 4f
+        val barW = (w / data.size) * 0.55f; val gap = (w / data.size) * 0.45f
+        data.forEachIndexed { i, (_, v) ->
+            val bH = (v / maxV) * h; val left = i * (barW + gap) + gap / 2f
+            drawRoundRect(color = color.copy(if (v == maxVal) 1f else 0.35f),
+                topLeft = Offset(left, h - bH), size = Size(barW, bH), cornerRadius = CornerRadius(barW / 2f))
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED COMPONENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun ExerciseCard(exercise: Exercise, setCount: Int, onClick: () -> Unit, onDelete: (() -> Unit)? = null) {
+    Surface(onClick = onClick, modifier = Modifier.aspectRatio(0.85f),
+        shape = RoundedCornerShape(16.dp), color = Surface1, border = BorderStroke(1.dp, Border)) {
+        Box {
+            Box(Modifier.fillMaxWidth().height(3.dp).background(exercise.color))
+            Column(Modifier.fillMaxSize().padding(top = 10.dp, start = 10.dp, end = 10.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.SpaceBetween) {
+                Box(Modifier.fillMaxWidth().weight(1f).background(exercise.color.copy(0.06f), RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(exercise.emoji, fontSize = 26.sp)
+                        if (exercise.isCustom) Text("CUSTOM", fontSize = 6.sp, color = Blue, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    }
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(exercise.name, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = TextPrim, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(exercise.muscle.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = exercise.color, letterSpacing = 0.3.sp)
+                    if (setCount > 0) Surface(shape = CircleShape, color = Accent) {
+                        Text("$setCount", modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp), fontSize = 9.sp, fontWeight = FontWeight.Black, color = Black)
                     }
                 }
             }
@@ -1752,28 +1844,96 @@ fun ExerciseBlock(name: String, sets: List<WorkoutSet>, onDelete: ((WorkoutSet) 
 }
 
 @Composable
-fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = CardBg) {
+fun ExerciseBlock(name: String, sets: List<WorkoutSet>, onDelete: ((WorkoutSet) -> Unit)?) {
+    Surface(shape = RoundedCornerShape(14.dp), color = Surface1) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text(name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextPrim)
+            Text("${sets.size} series · ${sets.sumOf { it.reps }} reps · max ${sets.maxOf { it.weightKg }}kg", fontSize = 12.sp, color = TextSec)
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = Border)
+            Spacer(Modifier.height(6.dp))
+            sets.forEachIndexed { i, set ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(24.dp).background(Surface3, RoundedCornerShape(6.dp)), contentAlignment = Alignment.Center) {
+                        Text("${i+1}", fontSize = 10.sp, color = TextSec, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("${set.reps} reps", fontSize = 14.sp, color = TextPrim, modifier = Modifier.weight(1f))
+                    Text(if (set.weightKg == 0f) "Peso corp." else "${set.weightKg}kg", fontSize = 14.sp, color = Accent, fontWeight = FontWeight.SemiBold)
+                    if (onDelete != null) IconButton(onClick = { onDelete(set) }, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Default.Delete, null, tint = TextTert, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable fun TypeBadge(label: String, color: Color) {
+    Surface(shape = RoundedCornerShape(4.dp), color = color.copy(0.1f)) {
+        Text(label, fontSize = 7.sp, color = color, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+    }
+}
+
+@Composable fun SectionLabel(text: String) {
+    Text(text, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+        color = TextTert, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+}
+
+@Composable fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(onClick = onClick, modifier = Modifier.height(32.dp), shape = RoundedCornerShape(50),
+        color = if (selected) Accent else Surface2, border = if (selected) null else BorderStroke(1.dp, Border)) {
+        Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+            Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Black else TextSec)
+        }
+    }
+}
+
+@Composable fun ChipFlex(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, modifier = modifier.height(32.dp), shape = RoundedCornerShape(50),
+        color = if (selected) Accent else Surface2, border = if (selected) null else BorderStroke(1.dp, Border)) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (selected) Black else TextSec,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable fun PRCard(label: String, value: String, sublabel: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(14.dp), color = Surface1, border = BorderStroke(1.dp, Accent.copy(0.15f))) {
+        Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, fontSize = 11.sp, color = TextSec, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            Text(value, fontSize = 17.sp, fontWeight = FontWeight.Black, color = Accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sublabel, fontSize = 9.sp, color = TextTert)
+        }
+    }
+}
+
+@Composable fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = Surface1) {
         Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, fontWeight = FontWeight.Black, fontSize = 20.sp, color = Accent)
-            Text(label, fontSize = 11.sp, color = TextSec, fontWeight = FontWeight.Bold)
+            Text(value, fontWeight = FontWeight.Black, fontSize = 18.sp, color = Accent)
+            Text(label, fontSize = 10.sp, color = TextSec, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
-@Composable
-fun BigStat(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = CardBg) {
+@Composable fun BigStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = Surface1) {
         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, fontWeight = FontWeight.Black, fontSize = 28.sp, color = Accent)
-            Text(label, fontSize = 11.sp, color = TextSec, fontWeight = FontWeight.Bold)
+            Text(value, fontWeight = FontWeight.Black, fontSize = 24.sp, color = Accent)
+            Text(label, fontSize = 10.sp, color = TextSec, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UTILS
-// ─────────────────────────────────────────────────────────────────────────────
+@Composable fun EmptyState(text: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text, color = TextSec, textAlign = TextAlign.Center, lineHeight = 22.sp)
+    }
+}
 
 fun formatDate(dateStr: String): String = try {
     LocalDate.parse(dateStr).format(DateTimeFormatter.ofPattern("d MMM yyyy"))

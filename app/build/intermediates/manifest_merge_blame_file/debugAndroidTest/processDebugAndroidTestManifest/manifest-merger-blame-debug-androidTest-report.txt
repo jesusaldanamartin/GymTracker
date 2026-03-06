@@ -3,32 +3,32 @@
 3    package="com.gymtracker.test" >
 4
 5    <uses-sdk
-5-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:5:5-74
+5-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:5:5-74
 6        android:minSdkVersion="26"
-6-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:5:15-41
+6-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:5:15-41
 7        android:targetSdkVersion="35" />
-7-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:5:42-71
+7-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:5:42-71
 8
 9    <instrumentation
-9-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:11:5-15:64
+9-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:11:5-15:64
 10        android:name="android.test.InstrumentationTestRunner"
-10-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:11:22-75
+10-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:11:22-75
 11        android:functionalTest="false"
-11-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:14:22-52
+11-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:14:22-52
 12        android:handleProfiling="false"
-12-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:13:22-53
+12-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:13:22-53
 13        android:label="Tests for com.gymtracker"
-13-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:15:22-62
+13-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:15:22-62
 14        android:targetPackage="com.gymtracker" />
-14-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:12:22-60
+14-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:12:22-60
 15
 16    <application
-16-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:7:5-9:19
+16-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:7:5-9:19
 17        android:debuggable="true"
 18        android:extractNativeLibs="false" >
 19        <uses-library android:name="android.test.runner" />
-19-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:8:9-60
-19-->E:\GymTrackerV3\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest2094325505822891170.xml:8:23-57
+19-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:8:9-60
+19-->E:\GymTracker\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest12496472303315172879.xml:8:23-57
 20    </application>
 21
 22</manifest>
