@@ -4,6 +4,10 @@ ADDED from E:\GymTracker\app\src\main\AndroidManifest.xml:2:1-18:12
 INJECTED from E:\GymTracker\app\src\main\AndroidManifest.xml:2:1-18:12
 INJECTED from E:\GymTracker\app\src\main\AndroidManifest.xml:2:1-18:12
 INJECTED from E:\GymTracker\app\src\main\AndroidManifest.xml:2:1-18:12
+MERGED from [io.coil-kt:coil-compose:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\8fc2332c4295204bfc825c5e343e7c4d\transformed\coil-compose-2.7.0\AndroidManifest.xml:2:1-7:12
+MERGED from [io.coil-kt:coil-compose-base:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\8a6b76e2480dce4df8a2c582235735d7\transformed\coil-compose-base-2.7.0\AndroidManifest.xml:2:1-7:12
+MERGED from [io.coil-kt:coil:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\582e3a5e3e15958fcca38d1491d6bf90\transformed\coil-2.7.0\AndroidManifest.xml:2:1-7:12
+MERGED from [io.coil-kt:coil-base:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\0c37b158d8dfc88b485abd62816fb97c\transformed\coil-base-2.7.0\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.appcompat:appcompat-resources:1.7.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\d3e4578f10edee97736d47dc1f8b220a\transformed\appcompat-resources-1.7.1\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.appcompat:appcompat:1.7.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\5c3206effc6a7cfa291dc3d917689935\transformed\appcompat-1.7.1\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\4b9a0b8c7636877bfc669071766d6d9c\transformed\drawerlayout-1.0.0\AndroidManifest.xml:17:1-22:12
@@ -46,6 +50,7 @@ MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.7] C:\Users\S
 MERGED from [androidx.lifecycle:lifecycle-process:2.8.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\0c6fc1393ee79e155f3ee4b9b6d366b1\transformed\lifecycle-process-2.8.7\AndroidManifest.xml:17:1-35:12
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\a1eb75a87578044a462a740578d7bc9c\transformed\lifecycle-livedata-core-2.8.7\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\127182c3475d9b94bbe9a0d45d3fba62\transformed\lifecycle-viewmodel-compose-release\AndroidManifest.xml:2:1-7:12
+MERGED from [com.google.accompanist:accompanist-drawablepainter:0.32.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\832eb0b9137adfc7ea3509934128012f\transformed\accompanist-drawablepainter-0.32.0\AndroidManifest.xml:17:1-23:12
 MERGED from [androidx.compose.material:material-icons-extended-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\1a4d92c0a31a8c4a6e9801edb90b90a8\transformed\material-icons-extended-release\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.material:material-icons-core-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\397eaf86aaf6d183f394177ec8658f81\transformed\material-icons-core-release\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.ui:ui-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\7351b7e18f21678831b1cef7f0c8e1e6\transformed\ui-release\AndroidManifest.xml:2:1-7:12
@@ -69,6 +74,7 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\Su
 MERGED from [androidx.compose.runtime:runtime-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\90138acb079f82c181958240c6eab42c\transformed\runtime-release\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\4cb026df58ca8c614e55a75b6445739e\transformed\runtime-saveable-release\AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\ef182153152fc99b6790b9324a2e67fb\transformed\core-runtime-2.2.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.exifinterface:exifinterface:1.3.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\9d44c704b8476e6c7ee6e7068f53484b\transformed\exifinterface-1.3.7\AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\a51153d3e45572076fbe3379f372d171\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:2:1-7:12
 	package
 		INJECTED from E:\GymTracker\app\src\main\AndroidManifest.xml
@@ -129,6 +135,14 @@ uses-sdk
 INJECTED from E:\GymTracker\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from E:\GymTracker\app\src\main\AndroidManifest.xml
 INJECTED from E:\GymTracker\app\src\main\AndroidManifest.xml
+MERGED from [io.coil-kt:coil-compose:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\8fc2332c4295204bfc825c5e343e7c4d\transformed\coil-compose-2.7.0\AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil-compose:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\8fc2332c4295204bfc825c5e343e7c4d\transformed\coil-compose-2.7.0\AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil-compose-base:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\8a6b76e2480dce4df8a2c582235735d7\transformed\coil-compose-base-2.7.0\AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil-compose-base:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\8a6b76e2480dce4df8a2c582235735d7\transformed\coil-compose-base-2.7.0\AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\582e3a5e3e15958fcca38d1491d6bf90\transformed\coil-2.7.0\AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\582e3a5e3e15958fcca38d1491d6bf90\transformed\coil-2.7.0\AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil-base:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\0c37b158d8dfc88b485abd62816fb97c\transformed\coil-base-2.7.0\AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil-base:2.7.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\0c37b158d8dfc88b485abd62816fb97c\transformed\coil-base-2.7.0\AndroidManifest.xml:5:5-44
 MERGED from [androidx.appcompat:appcompat-resources:1.7.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\d3e4578f10edee97736d47dc1f8b220a\transformed\appcompat-resources-1.7.1\AndroidManifest.xml:5:5-44
 MERGED from [androidx.appcompat:appcompat-resources:1.7.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\d3e4578f10edee97736d47dc1f8b220a\transformed\appcompat-resources-1.7.1\AndroidManifest.xml:5:5-44
 MERGED from [androidx.appcompat:appcompat:1.7.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\5c3206effc6a7cfa291dc3d917689935\transformed\appcompat-1.7.1\AndroidManifest.xml:5:5-44
@@ -213,6 +227,8 @@ MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.7] C:\Users\Superjes
 MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.8.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\a1eb75a87578044a462a740578d7bc9c\transformed\lifecycle-livedata-core-2.8.7\AndroidManifest.xml:20:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\127182c3475d9b94bbe9a0d45d3fba62\transformed\lifecycle-viewmodel-compose-release\AndroidManifest.xml:5:5-44
 MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose-android:2.8.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\127182c3475d9b94bbe9a0d45d3fba62\transformed\lifecycle-viewmodel-compose-release\AndroidManifest.xml:5:5-44
+MERGED from [com.google.accompanist:accompanist-drawablepainter:0.32.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\832eb0b9137adfc7ea3509934128012f\transformed\accompanist-drawablepainter-0.32.0\AndroidManifest.xml:21:5-44
+MERGED from [com.google.accompanist:accompanist-drawablepainter:0.32.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\832eb0b9137adfc7ea3509934128012f\transformed\accompanist-drawablepainter-0.32.0\AndroidManifest.xml:21:5-44
 MERGED from [androidx.compose.material:material-icons-extended-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\1a4d92c0a31a8c4a6e9801edb90b90a8\transformed\material-icons-extended-release\AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.material:material-icons-extended-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\1a4d92c0a31a8c4a6e9801edb90b90a8\transformed\material-icons-extended-release\AndroidManifest.xml:5:5-44
 MERGED from [androidx.compose.material:material-icons-core-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\397eaf86aaf6d183f394177ec8658f81\transformed\material-icons-core-release\AndroidManifest.xml:5:5-44
@@ -259,6 +275,8 @@ MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.5] C:\Users\S
 MERGED from [androidx.compose.runtime:runtime-saveable-android:1.7.5] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\4cb026df58ca8c614e55a75b6445739e\transformed\runtime-saveable-release\AndroidManifest.xml:5:5-44
 MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\ef182153152fc99b6790b9324a2e67fb\transformed\core-runtime-2.2.0\AndroidManifest.xml:20:5-44
 MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\ef182153152fc99b6790b9324a2e67fb\transformed\core-runtime-2.2.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.exifinterface:exifinterface:1.3.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\9d44c704b8476e6c7ee6e7068f53484b\transformed\exifinterface-1.3.7\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.exifinterface:exifinterface:1.3.7] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\9d44c704b8476e6c7ee6e7068f53484b\transformed\exifinterface-1.3.7\AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\a51153d3e45572076fbe3379f372d171\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:5:5-44
 MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\Superjesus\.gradle\caches\9.0.0\transforms\a51153d3e45572076fbe3379f372d171\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:5:5-44
 	android:targetSdkVersion

@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "com.gymtracker.app-debug-60:/drawable_dorsales.jpeg.flat",
+        "source": "com.gymtracker.app-main-62:/drawable/dorsales.jpeg"
+    },
+    {
+        "merged": "C:\\Users\\Superjesus\\.gradle\\daemon\\9.0.0\\com.gymtracker.app-debug-60:\\drawable_bench_press.png.flat",
+        "source": "C:\\Users\\Superjesus\\.gradle\\daemon\\9.0.0\\com.gymtracker.app-main-62:\\drawable\\bench_press.png"
+    }
+]

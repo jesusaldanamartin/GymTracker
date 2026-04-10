@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.gymtracker.app-mergeDebugResources-57:/values-sl/values-sl.xml",
+            "outputFile": "com.gymtracker.app-mergeDebugResources-58:/values-sl/values-sl.xml",
             "map": [
                 {
                     "source": "C:\\Users\\Superjesus\\.gradle\\caches\\9.0.0\\transforms\\5c3206effc6a7cfa291dc3d917689935\\transformed\\appcompat-1.7.1\\res\\values-sl\\values-sl.xml",
