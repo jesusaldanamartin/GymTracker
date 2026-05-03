@@ -381,6 +381,35 @@ object Storage {
     private const val KEY_CUSTOM_EX    = "custom_exercises"
     private const val KEY_PENDING_SETS = "pending_sets_v4"
     private const val KEY_PENDING_DATE = "pending_date"
+    private const val KEY_IMPORTED_EX = "imported_exercises"
+
+    fun saveImportedExercises(context: Context, list: List<Exercise>) {
+        val arr = JSONArray()
+        list.filter { !it.isCustom }.forEach { ex ->
+            arr.put(JSONObject().apply {
+                put("id", ex.id); put("name", ex.name); put("muscle", ex.muscle)
+                put("routine", ex.routine); put("emoji", ex.emoji)
+                put("strength", ex.isStrengthFocus); put("cardio", ex.isCardio)
+            })
+        }
+        prefs(context).edit().putString(KEY_IMPORTED_EX, arr.toString()).apply()
+    }
+
+    fun loadImportedExercises(context: Context): List<Exercise> {
+        val raw = prefs(context).getString(KEY_IMPORTED_EX, null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i); val muscle = o.getString("muscle")
+                Exercise(
+                    o.getInt("id"), o.getString("name"), muscle, o.getString("routine"),
+                    o.getString("emoji"), MUSCLE_COLORS[muscle] ?: Color(0xFF8E8E93),
+                    o.getBoolean("strength"), isCustom = false,
+                    isCardio = o.optBoolean("cardio", false)
+                )
+            }
+        } catch (e: Exception) { emptyList() }
+    }
 
     fun save(context: Context, sessions: List<Session>) {
         val arr = JSONArray()
@@ -593,6 +622,13 @@ object Storage {
                     LocalDate.parse(date)
 
                     val exercise = knownByName[exName.lowercase()] ?: run {
+                        // 1. Check seed exercises first (handles re-importing from old app version)
+                        val seedMatch = SEED_EXERCISES.find { it.name.equals(exName, ignoreCase = true) }
+                        if (seedMatch != null) {
+                            knownByName[exName.lowercase()] = seedMatch
+                            return@run seedMatch
+                        }
+                        // 2. Not a seed — create as imported (not custom, no badge/delete button)
                         val isStrength = tipo == "fuerza"
                         val isCardio   = tipo == "cardio"
                         val color      = MUSCLE_COLORS[muscle] ?: Color(0xFF8E8E93)
@@ -600,12 +636,13 @@ object Storage {
                             "Pecho"   -> "💪"; "Hombros" -> "🏋️"; "Triceps" -> "💪"
                             "Espalda" -> "🔙"; "Biceps"  -> "💪"; "Piernas" -> "🦵"
                             "Gluteos" -> "🍑"; "Core"    -> "🎯"; "Cardio"  -> "❤️"
-                            else      -> "💪"
+                            else      -> "🎯"
                         }
                         val newEx = Exercise(
                             id = nextId++, name = exName, muscle = muscle,
                             routine = routine, emoji = emoji, color = color,
-                            isStrengthFocus = isStrength, isCustom = true, isCardio = isCardio
+                            isStrengthFocus = isStrength, isCustom = false,  // ← key change
+                            isCardio = isCardio
                         )
                         knownByName[exName.lowercase()] = newEx
                         newCustomExercises.add(newEx)
@@ -723,8 +760,9 @@ class GymViewModel : ViewModel() {
     var sets            = mutableStateListOf<WorkoutSet>();  private set
     var savedSessions   = mutableStateListOf<Session>();     private set
     var customExercises = mutableStateListOf<Exercise>();    private set
+    var importedExercises = mutableStateListOf<Exercise>(); private set
 
-    val allExercises: List<Exercise> get() = SEED_EXERCISES + customExercises
+    val allExercises: List<Exercise> get() = SEED_EXERCISES + importedExercises + customExercises
 
     var muscleFilter          by mutableStateOf("Todos")
     var routineFilter         by mutableStateOf("Todas")
@@ -830,6 +868,7 @@ class GymViewModel : ViewModel() {
     fun loadAll(context: Context) {
         savedSessions.clear();   savedSessions.addAll(Storage.load(context))
         customExercises.clear(); customExercises.addAll(Storage.loadCustomExercises(context))
+        importedExercises.clear(); importedExercises.addAll(Storage.loadImportedExercises(context))
 
         // Cargar variantes configuradas por el usuario
         val savedVariants = Storage.loadExerciseVariants(context)
@@ -874,12 +913,24 @@ class GymViewModel : ViewModel() {
     fun nextCustomId() = (allExercises.maxOfOrNull { it.id } ?: 100) + 1
 
     fun importSessions(result: ImportResult.Success, context: Context) {
+        // Exercises that were in the CSV but not in seed/existing — split by isCustom flag
         result.newCustomExercises.forEach { newEx ->
-            if (customExercises.none { it.name.equals(newEx.name, ignoreCase = true) })
-                customExercises.add(newEx)
+            if (newEx.isCustom) {
+                // User-created custom (won't happen with new logic, but guard anyway)
+                if (customExercises.none { it.name.equals(newEx.name, ignoreCase = true) })
+                    customExercises.add(newEx)
+            } else {
+                // Imported seed-like exercise — no badge, not deletable
+                if (importedExercises.none { it.name.equals(newEx.name, ignoreCase = true) } &&
+                    SEED_EXERCISES.none { it.name.equals(newEx.name, ignoreCase = true) })
+                    importedExercises.add(newEx)
+            }
         }
-        if (result.newCustomExercises.isNotEmpty())
+        if (result.newCustomExercises.any { it.isCustom })
             Storage.saveCustomExercises(context, customExercises.toList())
+        if (result.newCustomExercises.any { !it.isCustom })
+            Storage.saveImportedExercises(context, importedExercises.toList())
+
         savedSessions.clear(); savedSessions.addAll(result.mergedSessions)
         Storage.save(context, savedSessions.toList())
     }
@@ -1813,6 +1864,12 @@ fun ProgressScreen(vm: GymViewModel) {
     }
 
     importPending?.let { pending ->
+        val trulyNew = pending.newCustomExercises.filter {
+            SEED_EXERCISES.none { seed -> seed.name.equals(it.name, ignoreCase = true) }
+        }
+        if (trulyNew.isNotEmpty()) {
+            // ... show preview using trulyNew instead of pending.newCustomExercises
+        }
         AlertDialog(
             onDismissRequest = { importPending = null }, containerColor = Surface2,
             icon  = { Text("📥", fontSize = 26.sp) },
@@ -1878,8 +1935,7 @@ fun ProgressScreen(vm: GymViewModel) {
                     ImportStatRow("Sesiones fusionadas", "${s.updatedSessions}")
                     ImportStatRow("Series añadidas",     "${s.newSets}")
                     if (s.newCustomExercises.isNotEmpty())
-                        ImportStatRow("Ejercicios creados", "${s.newCustomExercises.size}", Blue)
-                }
+                        ImportStatRow("Ejercicios creados", "${s.newCustomExercises.count { it.isCustom }}", Blue)                }
             },
             confirmButton = { TextButton(onClick = { importResult = null }) { Text("OK", color = Accent, fontWeight = FontWeight.Bold) } }
         )
