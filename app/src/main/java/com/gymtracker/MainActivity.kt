@@ -92,15 +92,9 @@ data class Exercise(
     val color: Color,
     val isStrengthFocus: Boolean = false,
     val isCustom: Boolean = false,
-    // FEATURE 3: cardio flag
     val isCardio: Boolean = false
 )
 
-/**
- * WorkoutSet — para cardio:
- *  • reps  = duración en minutos
- *  • weightKg = intensidad (1–10 como Float, o 0 si no aplica)
- */
 data class WorkoutSet(
     val exerciseId: Int,
     val exerciseName: String,
@@ -170,10 +164,8 @@ val ROUTINE_COLORS = mapOf(
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FEATURE 2: VARIANT SUGGESTIONS POR EJERCICIO (id → sugerencias)
-// Si un id no está aquí, se usa el mapa de músculo como fallback.
+// VARIANT SUGGESTIONS
 // ─────────────────────────────────────────────────────────────────────────────
-
 
 val SEED_VARIANTS_BY_EXERCISE: Map<Int, List<String>> = mapOf(
     1  to listOf("Agarre ancho", "Agarre cerrado", "Pausa abajo"),
@@ -200,60 +192,29 @@ val SEED_VARIANTS_BY_EXERCISE: Map<Int, List<String>> = mapOf(
 )
 
 val VARIANT_SUGGESTIONS_BY_EXERCISE: Map<Int, List<String>> = mapOf(
-    // Pecho
-    1  to listOf("Agarre ancho", "Agarre cerrado", "Pausa abajo"),        // Press Banca
-    // 2  to listOf("30°", "45°", "Pausa abajo"),                          // Press Inclinado
-    // 42 to listOf("30°", "45°", "Pausa abajo"),                       // Press Inclinado Manc.
-    31 to listOf("Cable bajo", "Cable alto", "Cable medio", "Unilateral"),               // Aperturas Cable
-    // 3  to listOf("Rango completo", "Rango parcial", "Pausa pico"),                         // Peck Deck
-    // 4  to listOf("Vertical", "Inclinado adelante", "Con lastre"),                          // Fondos
-    // Hombros
-    5  to listOf("Barra", "Mancuernas", "Máquina", "De pie"),                  // Press Militar
-    6  to listOf("Cable", "Muñequeras", "Mancuernas"),         // Elevaciones Lat.
-    7  to listOf("Unilateral"),                          // Reversed Peck Deck
-    // 17 to listOf("Agarre neutro", "Agarre prono", "Cuerda", "Barra EZ"),                   // Facepull
-    // Tríceps
-    8  to listOf("Cuerda", "Barra V", "Barra Plana"),             // Extensiones Triceps
-    // 9  to listOf("Barra EZ", "Barra recta", "Mancuernas"),                                 // Extensiones Katana
-    // 32 to listOf("Polea alta", "Polea baja", "Cable lateral"),                             // Extensiones Unilateral
-    33 to listOf("Mancuerna", "Cuerda", "Barra Plana"),                                 // Extensiones sobre cabeza
-    // Espalda
-    10 to listOf("Agarre prono", "Agarre supino", "Agarre neutro", "Agarre ancho", "Agarre cerrado"), // Dominadas
-    11 to listOf("Agarre espalda alta", "Agarre dorsal"),          // Remo en T
-    12 to listOf("Agarre prono ancho", "Mag Ancho", "Mag Mediano", "Mag Mediano Peq.", "Mag Pequeño"),// Jalón al Pecho
-    13 to listOf("Pronado", "Supinado", "Neutro"),         // Remo Máquina Unilateral
-    // 34 to listOf("Agarre supino", "Agarre prono", "Agarre neutro"),                        // Remo Polea Unilateral
-    35 to listOf("Cuerda", "Mancuerna", "Barra Plana"),                                     // Pull Over
-    // Bíceps
-    14 to listOf("Cable", "Banco Inclinado", "Estricto"),                             // Curl Bíceps Unilateral
-    15 to listOf("Mancuernas", "Cuerda", "Estricto"),                               // Curl Martillo
-    // 16 to listOf("Cable bajo unilateral", "Agarre supino"),               // Curl Bayesian
-    36 to listOf("Barra EZ", "Barra recta", "Máquina"),                                  // Curl Predicador
-    // Piernas
-    18 to listOf("Pausa abajo"),        // Sentadilla Libre
-    23 to listOf("Pausa abajo", "Pie elevado"),         // Sentadilla MultiPower
-    // 37 to listOf("Convencional", "Sumo", "Rumano", "Barra", "Mancuernas"),                 // Peso Muerto
-    // 38 to listOf("Stance ancho", "Stance medio", "Pausa abajo"),                           // Peso Muerto Sumo
-    // 39 to listOf("Barra", "Mancuernas", "Unilateral"),                                     // Peso Muerto Rumano
-    // 19 to listOf("Pies altos", "Pies bajos", "Pies juntos", "Pies separados", "Unilateral"), // Prensa de Piernas
-    // 20 to listOf("Rango completo", "Rango parcial", "Pausa arriba", "Unilateral"),         // Extensiones Cuad.
-    // 21 to listOf("Tumbado", "Sentado", "Unilateral", "Pausa abajo"),                       // Curl Femoral
-    // 22 to listOf("Barra", "Mancuerna", "Banda", "Pie elevado", "Unilateral"),              // Hip Thrust
-    //24 to listOf("De pie", "Sentado", "Unilateral", "Donkey"),                             // Gemelos de Pie
-    //40 to listOf("Máquina sentado", "Cable", "Banda"),                                     // Aducciones
-    //41 to listOf("Máquina sentado", "Cable", "Banda"),                                     // Abducciones
-    // Core
-    //25 to listOf("Rodillas dobladas", "Piernas rectas", "Con lastre", "En barra"),         // Elevaciones de piernas
-    //26 to listOf("Cuerda", "Barra", "Unilateral"),                                         // Crunch Polea
-    //27 to listOf("De rodillas", "De pie", "Con lastre"),                                   // Rueda Abdominal
-    // Cardio — FEATURE 3: variantes = modo de sesión
-    28 to listOf("Ritmo constante", "Intervalos", "HIIT", "Inclinación 0%", "Inclinación 5%", "Inclinación 10%"), // Cinta
-    29 to listOf("Ritmo constante", "Intervalos", "HIIT", "Resistencia baja", "Resistencia alta"), // Bicicleta
-    30 to listOf("Ritmo constante", "Intervalos", "Sprints", "Cadencia baja", "Cadencia alta"),     // Remo Ergómetro
-    43 to listOf("Ritmo constante", "Intervalos", "Alta velocidad", "Baja velocidad"),              // Máquina de Escalera
+    1  to listOf("Agarre ancho", "Agarre cerrado", "Pausa abajo"),
+    31 to listOf("Cable bajo", "Cable alto", "Cable medio", "Unilateral"),
+    5  to listOf("Barra", "Mancuernas", "Máquina", "De pie"),
+    6  to listOf("Cable", "Muñequeras", "Mancuernas"),
+    7  to listOf("Unilateral"),
+    8  to listOf("Cuerda", "Barra V", "Barra Plana"),
+    33 to listOf("Mancuerna", "Cuerda", "Barra Plana"),
+    10 to listOf("Agarre prono", "Agarre supino", "Agarre neutro", "Agarre ancho", "Agarre cerrado"),
+    11 to listOf("Agarre espalda alta", "Agarre dorsal"),
+    12 to listOf("Agarre prono ancho", "Mag Ancho", "Mag Mediano", "Mag Mediano Peq.", "Mag Pequeño"),
+    13 to listOf("Pronado", "Supinado", "Neutro"),
+    35 to listOf("Cuerda", "Mancuerna", "Barra Plana"),
+    14 to listOf("Cable", "Banco Inclinado", "Estricto"),
+    15 to listOf("Mancuernas", "Cuerda", "Estricto"),
+    36 to listOf("Barra EZ", "Barra recta", "Máquina"),
+    18 to listOf("Pausa abajo"),
+    23 to listOf("Pausa abajo", "Pie elevado"),
+    28 to listOf("Ritmo constante", "Intervalos", "HIIT", "Inclinación 0%", "Inclinación 5%", "Inclinación 10%"),
+    29 to listOf("Ritmo constante", "Intervalos", "HIIT", "Resistencia baja", "Resistencia alta"),
+    30 to listOf("Ritmo constante", "Intervalos", "Sprints", "Cadencia baja", "Cadencia alta"),
+    43 to listOf("Ritmo constante", "Intervalos", "Alta velocidad", "Baja velocidad"),
 )
 
-// Fallback por músculo (para ejercicios custom sin entrada en el mapa por id)
 val VARIANT_SUGGESTIONS_BY_MUSCLE = mapOf(
     "Pecho"    to listOf("Banco plano", "Banco 30°", "Banco 45°", "Declive", "Agarre ancho", "Agarre cerrado"),
     "Hombros"  to listOf("Agarre neutro", "Agarre pronado", "Unilateral", "Cable bajo", "Cable alto"),
@@ -322,7 +283,6 @@ val SEED_EXERCISES = listOf(
     Exercise(25, "Elevaciones de piernas",    "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
     Exercise(26, "Crunch Polea",              "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
     Exercise(27, "Rueda Abdominal",           "Core",    "Full",   "🎯", Color(0xFF06D6A0)),
-    // FEATURE 3: isCardio = true
     Exercise(28, "Cinta de Correr",           "Cardio",  "Cardio", "❤️", Color(0xFFE63946), isCardio = true),
     Exercise(29, "Bicicleta Est.",            "Cardio",  "Cardio", "❤️", Color(0xFFE63946), isCardio = true),
     Exercise(30, "Remo Ergómetro",            "Cardio",  "Cardio", "❤️", Color(0xFFE63946), isCardio = true),
@@ -381,7 +341,7 @@ object Storage {
     private const val KEY_CUSTOM_EX    = "custom_exercises"
     private const val KEY_PENDING_SETS = "pending_sets_v4"
     private const val KEY_PENDING_DATE = "pending_date"
-    private const val KEY_IMPORTED_EX = "imported_exercises"
+    private const val KEY_IMPORTED_EX  = "imported_exercises"
 
     fun saveImportedExercises(context: Context, list: List<Exercise>) {
         val arr = JSONArray()
@@ -542,14 +502,13 @@ object Storage {
 
     private fun buildCSV(sessions: List<Session>, allEx: List<Exercise>): String {
         val sb = StringBuilder()
-        // FEATURE 3: columna "tipo" ahora puede ser "cardio"
         sb.appendLine("fecha,ejercicio,musculo,rutina,tipo,variante,serie,reps,peso_kg,e1rm,score_hipertrofia,nota")
         sessions.sortedBy { it.date }.forEach { s ->
             s.sets.groupBy { it.exerciseName }.forEach { (_, exSets) ->
                 exSets.forEachIndexed { idx, set ->
                     val ex   = allEx.find { it.id == set.exerciseId }
                     val tipo = when {
-                        ex?.isCardio == true       -> "cardio"
+                        ex?.isCardio == true        -> "cardio"
                         ex?.isStrengthFocus == true -> "fuerza"
                         else                        -> "hipertrofia"
                     }
@@ -622,13 +581,11 @@ object Storage {
                     LocalDate.parse(date)
 
                     val exercise = knownByName[exName.lowercase()] ?: run {
-                        // 1. Check seed exercises first (handles re-importing from old app version)
                         val seedMatch = SEED_EXERCISES.find { it.name.equals(exName, ignoreCase = true) }
                         if (seedMatch != null) {
                             knownByName[exName.lowercase()] = seedMatch
                             return@run seedMatch
                         }
-                        // 2. Not a seed — create as imported (not custom, no badge/delete button)
                         val isStrength = tipo == "fuerza"
                         val isCardio   = tipo == "cardio"
                         val color      = MUSCLE_COLORS[muscle] ?: Color(0xFF8E8E93)
@@ -641,7 +598,7 @@ object Storage {
                         val newEx = Exercise(
                             id = nextId++, name = exName, muscle = muscle,
                             routine = routine, emoji = emoji, color = color,
-                            isStrengthFocus = isStrength, isCustom = false,  // ← key change
+                            isStrengthFocus = isStrength, isCustom = false,
                             isCardio = isCardio
                         )
                         knownByName[exName.lowercase()] = newEx
@@ -698,7 +655,7 @@ object Storage {
     }
 
     private fun parseCsvLine(line: String): List<String> {
-        val result  = mutableListOf<String>()
+        val result   = mutableListOf<String>()
         var inQuotes = false
         val current  = StringBuilder()
         for (char in line) {
@@ -757,10 +714,10 @@ data class ExerciseTrend(
 
 class GymViewModel : ViewModel() {
 
-    var sets            = mutableStateListOf<WorkoutSet>();  private set
-    var savedSessions   = mutableStateListOf<Session>();     private set
-    var customExercises = mutableStateListOf<Exercise>();    private set
-    var importedExercises = mutableStateListOf<Exercise>(); private set
+    var sets              = mutableStateListOf<WorkoutSet>();  private set
+    var savedSessions     = mutableStateListOf<Session>();     private set
+    var customExercises   = mutableStateListOf<Exercise>();    private set
+    var importedExercises = mutableStateListOf<Exercise>();    private set
 
     val allExercises: List<Exercise> get() = SEED_EXERCISES + importedExercises + customExercises
 
@@ -770,17 +727,11 @@ class GymViewModel : ViewModel() {
     var searchQuery           by mutableStateOf("")
     var progressRoutineFilter by mutableStateOf("Todas")
 
-    // exerciseVariants: Map<exerciseId → lista de variantes configuradas por el usuario>
-    // Si el id NO está en el mapa, el ejercicio NO tiene variantes.
     val exerciseVariants = mutableStateMapOf<Int, List<String>>()
 
-    /** Devuelve las variantes configuradas para este ejercicio (vacío = sin variantes) */
     fun variantsFor(exerciseId: Int): List<String> = exerciseVariants[exerciseId] ?: emptyList()
-
-    /** ¿Tiene variantes configuradas este ejercicio? */
     fun hasVariants(exerciseId: Int): Boolean = exerciseVariants[exerciseId]?.isNotEmpty() == true
 
-    /** Guarda las variantes del ejercicio (lista vacía = quitar variantes) */
     fun setVariants(exerciseId: Int, variants: List<String>, context: Context) {
         if (variants.isEmpty()) exerciseVariants.remove(exerciseId)
         else exerciseVariants[exerciseId] = variants
@@ -816,7 +767,7 @@ class GymViewModel : ViewModel() {
     }
 
     val weekStats: WeekStats get() {
-        val weekDates = currentWeekDates().toSet()
+        val weekDates    = currentWeekDates().toSet()
         val weekSessions = savedSessions.filter { it.date in weekDates }
         val daysWithSession = weekSessions.map { it.date }.toSet().size
         val allSets = weekSessions.flatMap { it.sets }
@@ -870,11 +821,9 @@ class GymViewModel : ViewModel() {
         customExercises.clear(); customExercises.addAll(Storage.loadCustomExercises(context))
         importedExercises.clear(); importedExercises.addAll(Storage.loadImportedExercises(context))
 
-        // Cargar variantes configuradas por el usuario
         val savedVariants = Storage.loadExerciseVariants(context)
         exerciseVariants.clear()
         if (savedVariants.isEmpty()) {
-            // Primera vez: pre-cargar semillas para los ejercicios que las tienen
             SEED_VARIANTS_BY_EXERCISE.forEach { (id, list) -> exerciseVariants[id] = list }
             Storage.saveExerciseVariants(context, exerciseVariants.toMap())
         } else {
@@ -913,14 +862,11 @@ class GymViewModel : ViewModel() {
     fun nextCustomId() = (allExercises.maxOfOrNull { it.id } ?: 100) + 1
 
     fun importSessions(result: ImportResult.Success, context: Context) {
-        // Exercises that were in the CSV but not in seed/existing — split by isCustom flag
         result.newCustomExercises.forEach { newEx ->
             if (newEx.isCustom) {
-                // User-created custom (won't happen with new logic, but guard anyway)
                 if (customExercises.none { it.name.equals(newEx.name, ignoreCase = true) })
                     customExercises.add(newEx)
             } else {
-                // Imported seed-like exercise — no badge, not deletable
                 if (importedExercises.none { it.name.equals(newEx.name, ignoreCase = true) } &&
                     SEED_EXERCISES.none { it.name.equals(newEx.name, ignoreCase = true) })
                     importedExercises.add(newEx)
@@ -983,19 +929,18 @@ class GymViewModel : ViewModel() {
                 s.date to filtered.sumOf { it.reps }.toFloat()
             }.filter { it.second > 0f }
 
-    // FEATURE 3: progresión de duración y de intensidad para cardio
     fun durationProgressionFor(exerciseId: Int, variant: String = ""): List<Pair<String, Float>> =
         savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }.sortedBy { it.date }
             .map { s ->
                 val filtered = s.sets.filter { it.exerciseId == exerciseId && (variant.isBlank() || it.variant == variant) }
-                s.date to filtered.sumOf { it.reps }.toFloat()  // reps = minutos
+                s.date to filtered.sumOf { it.reps }.toFloat()
             }.filter { it.second > 0f }
 
     fun intensityProgressionFor(exerciseId: Int, variant: String = ""): List<Pair<String, Float>> =
         savedSessions.filter { s -> s.sets.any { it.exerciseId == exerciseId } }.sortedBy { it.date }
             .map { s ->
                 val filtered = s.sets.filter { it.exerciseId == exerciseId && (variant.isBlank() || it.variant == variant) }
-                s.date to (filtered.maxOfOrNull { it.weightKg } ?: 0f)  // weightKg = intensidad 1-10
+                s.date to (filtered.maxOfOrNull { it.weightKg } ?: 0f)
             }.filter { it.second > 0f }
 
     fun trendFor(exerciseId: Int, variant: String = ""): ExerciseTrend? {
@@ -1724,7 +1669,6 @@ fun ExerciseCard(
                             }
                         }
                     }
-                    // FEATURE 3: badge cardio
                     if (exercise.isCardio) {
                         Box(Modifier.align(Alignment.TopStart).padding(4.dp)) {
                             Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFFE63946).copy(0.2f)) {
@@ -1864,12 +1808,6 @@ fun ProgressScreen(vm: GymViewModel) {
     }
 
     importPending?.let { pending ->
-        val trulyNew = pending.newCustomExercises.filter {
-            SEED_EXERCISES.none { seed -> seed.name.equals(it.name, ignoreCase = true) }
-        }
-        if (trulyNew.isNotEmpty()) {
-            // ... show preview using trulyNew instead of pending.newCustomExercises
-        }
         AlertDialog(
             onDismissRequest = { importPending = null }, containerColor = Surface2,
             icon  = { Text("📥", fontSize = 26.sp) },
@@ -1935,7 +1873,8 @@ fun ProgressScreen(vm: GymViewModel) {
                     ImportStatRow("Sesiones fusionadas", "${s.updatedSessions}")
                     ImportStatRow("Series añadidas",     "${s.newSets}")
                     if (s.newCustomExercises.isNotEmpty())
-                        ImportStatRow("Ejercicios creados", "${s.newCustomExercises.count { it.isCustom }}", Blue)                }
+                        ImportStatRow("Ejercicios creados", "${s.newCustomExercises.count { it.isCustom }}", Blue)
+                }
             },
             confirmButton = { TextButton(onClick = { importResult = null }) { Text("OK", color = Accent, fontWeight = FontWeight.Bold) } }
         )
@@ -2008,7 +1947,6 @@ fun ProgressScreen(vm: GymViewModel) {
                                         Text("${ex.muscle} · $sessions ses.", fontSize = 12.sp, color = ex.color)
                                         trend?.let { Text(when(it.trend) { TrendState.PROGRESSING -> "🟢"; TrendState.STAGNANT -> "🟡"; TrendState.FATIGUE -> "🟠" }, fontSize = 10.sp) }
                                     }
-                                    // FEATURE 4: variantes inline horizontal, sin expandir tarjeta
                                     val variants = vm.knownVariantsFor(ex.id)
                                     if (variants.isNotEmpty()) {
                                         Spacer(Modifier.height(4.dp))
@@ -2031,7 +1969,6 @@ fun ProgressScreen(vm: GymViewModel) {
                                         }
                                     }
                                 }
-                                // Métrica derecha: diferente para cardio
                                 Column(horizontalAlignment = Alignment.End) {
                                     if (ex.isCardio) {
                                         val lastDuration = vm.durationProgressionFor(ex.id).lastOrNull()?.second?.toInt() ?: 0
@@ -2089,33 +2026,57 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
             exercise        = exercise,
             currentVariants = vm.variantsFor(exercise.id),
             onDismiss       = { showConfigVariants = false },
-            onSave          = { newList ->
+            onSave          = { newList: List<String> ->
                 vm.setVariants(exercise.id, newList, context)
                 showConfigVariants = false
             }
         )
     }
 
-    val e1rmData     = vm.e1rmProgressionFor(exercise.id, selectedVariant)
-    val hyData       = vm.hypertrophyProgressionFor(exercise.id, selectedVariant)
-    val volData      = vm.volumeProgressionFor(exercise.id, selectedVariant)
-    val repsData     = vm.repsProgressionFor(exercise.id, selectedVariant)
-    val wData        = vm.weightProgressionFor(exercise.id, selectedVariant)
-    val durData      = vm.durationProgressionFor(exercise.id, selectedVariant)
-    val intData      = vm.intensityProgressionFor(exercise.id, selectedVariant)
-    val byDate       = vm.historyForVariant(exercise.id, selectedVariant).groupBy { it.first }
-    val trend        = vm.trendFor(exercise.id, selectedVariant)
+    val e1rmData  = vm.e1rmProgressionFor(exercise.id, selectedVariant)
+    val hyData    = vm.hypertrophyProgressionFor(exercise.id, selectedVariant)
+    val volData   = vm.volumeProgressionFor(exercise.id, selectedVariant)
+    val repsData  = vm.repsProgressionFor(exercise.id, selectedVariant)
+    val wData     = vm.weightProgressionFor(exercise.id, selectedVariant)
+    val durData   = vm.durationProgressionFor(exercise.id, selectedVariant)
+    val intData   = vm.intensityProgressionFor(exercise.id, selectedVariant)
+    val byDate    = vm.historyForVariant(exercise.id, selectedVariant).groupBy { it.first }
+    val trend     = vm.trendFor(exercise.id, selectedVariant)
 
-    val maxWeight = vm.historyForVariant(exercise.id, selectedVariant).maxOfOrNull { it.second.weightKg } ?: 0f
-    val maxReps   = vm.historyForVariant(exercise.id, selectedVariant).maxOfOrNull { it.second.reps } ?: 0
-    val bestVol   = volData.maxOfOrNull { it.second } ?: 0f
-    var chartTab  by remember { mutableStateOf(0) }
+    val allHistory    = vm.historyForVariant(exercise.id, selectedVariant)
+    val maxWeight     = allHistory.maxOfOrNull { it.second.weightKg } ?: 0f
+    val maxReps       = allHistory.maxOfOrNull { it.second.reps } ?: 0
+    val bestVol       = volData.maxOfOrNull { it.second } ?: 0f
+    val totalSessions = if (isC) durData.size else e1rmData.size
 
-    LazyColumn(Modifier.fillMaxSize().background(Surface0), contentPadding = PaddingValues(bottom = 40.dp)) {
+    var chartTab by remember { mutableStateOf(0) }
+    var sessionViewTab by remember { mutableStateOf(0) }
+
+    val chartData: List<Pair<String, Float>>
+    val chartUnit: String
+    val chartLabel: String
+    if (isC) {
+        chartData  = if (chartTab == 0) durData else intData
+        chartUnit  = if (chartTab == 0) "min" else "/10"
+        chartLabel = if (chartTab == 0) "Duración por sesión (min)" else "Intensidad por sesión (/10)"
+    } else {
+        chartData  = when (chartTab) { 0 -> if (isS) e1rmData else hyData; 1 -> volData; 2 -> wData; else -> repsData }
+        chartUnit  = when (chartTab) { 0 -> if (isS) "kg" else ""; 1 -> "kg"; 2 -> "kg"; else -> "r" }
+        chartLabel = when (chartTab) { 0 -> if (isS) "E1RM estimado" else "Mejor set"; 1 -> "Volumen total"; 2 -> "Peso máximo"; else -> "Reps totales" }
+    }
+
+    LazyColumn(
+        Modifier.fillMaxSize().background(Surface0),
+        contentPadding = PaddingValues(bottom = 40.dp)
+    ) {
         item {
-            Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp, end = 12.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrim) }
+            Row(
+                Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp, end = 12.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrim)
+                }
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(exercise.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrim)
@@ -2125,7 +2086,6 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
                     }
                     Text("${exercise.muscle} · ${exercise.routine}", fontSize = 12.sp, color = exercise.color)
                 }
-                // Botón configurar variantes
                 Surface(
                     onClick = { showConfigVariants = true },
                     shape = RoundedCornerShape(10.dp),
@@ -2146,15 +2106,12 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
                 Column(Modifier.padding(horizontal = 16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(Modifier.size(6.dp).background(Purple, CircleShape))
-                        Text("MODO / VARIANTE", fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                            color = TextTert, letterSpacing = 0.8.sp)
+                        Text("MODO / VARIANTE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextTert, letterSpacing = 0.8.sp)
                     }
                     Spacer(Modifier.height(6.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         item {
-                            VariantChip(label = "Todas", selected = selectedVariant.isEmpty()) {
-                                selectedVariant = ""
-                            }
+                            VariantChip(label = "Todas", selected = selectedVariant.isEmpty()) { selectedVariant = "" }
                         }
                         items(knownVariants) { v ->
                             VariantChip(label = v, selected = selectedVariant == v) {
@@ -2167,87 +2124,43 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
             }
         }
 
-        trend?.let { t ->
-            item {
-                val (bg, borderC, icon, status, sub) = when (t.trend) {
-                    TrendState.PROGRESSING -> listOf(GreenOk.copy(0.07f),   GreenOk.copy(0.25f),   "🟢", "Progresando",   "+${t.pctChange.roundToInt()}% vs últimas 5")
-                    TrendState.STAGNANT    -> listOf(YellowWarn.copy(0.07f), YellowWarn.copy(0.25f), "🟡", "Mantenimiento", "${t.pctChange.roundToInt()}% vs últimas 5")
-                    TrendState.FATIGUE     -> listOf(OrangeStk.copy(0.07f),  OrangeStk.copy(0.25f),  "🟠", "Fatiga",        "${t.pctChange.roundToInt()}% vs últimas 5")
-                }
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(14.dp),
-                    color = bg as Color, border = BorderStroke(1.dp, borderC as Color)) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(icon as String, fontSize = 18.sp)
-                        Column(Modifier.weight(1f)) {
-                            Text(status as String, fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 13.sp)
-                            Text(sub as String, fontSize = 11.sp, color = TextSec)
-                            if (selectedVariant.isNotEmpty()) {
-                                Spacer(Modifier.height(3.dp))
-                                Surface(shape = RoundedCornerShape(4.dp), color = Purple.copy(0.12f)) {
-                                    Text("Filtrado: $selectedVariant", fontSize = 9.sp, color = Purple,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-                                }
-                            }
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            val v = when {
-                                isC -> {
-                                    val d = durData.lastOrNull()?.second?.toInt() ?: 0
-                                    "${d}min"
-                                }
-                                isS -> "${t.latestMetric.roundToInt()}kg"
-                                else -> {
-                                    val ld = vm.savedSessions.lastOrNull { s -> s.sets.any { it.exerciseId == exercise.id } }?.date
-                                    val bs = vm.historyForVariant(exercise.id, selectedVariant)
-                                        .filter { it.first == ld }.maxByOrNull { it.second.reps * it.second.weightKg }?.second
-                                    if (bs != null) "${bs.reps}r×${bs.weightKg.toInt()}kg" else "${t.latestMetric.roundToInt()}"
-                                }
-                            }
-                            Text(v, fontSize = 16.sp, fontWeight = FontWeight.Black, color = Accent)
-                            Text(if (isC) "última sesión" else if (isS) "E1RM actual" else "mejor set", fontSize = 9.sp, color = TextSec)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
+        item {
+            HeroMetricCard(
+                exercise      = exercise,
+                trend         = trend,
+                isS           = isS,
+                isC           = isC,
+                e1rmData      = e1rmData,
+                durData       = durData,
+                volData       = volData,
+                selectedVariant = selectedVariant,
+                vm            = vm,
+                modifier      = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(Modifier.height(10.dp))
         }
 
         item {
-            SectionLabel("RÉCORDS${if (selectedVariant.isNotEmpty()) " · $selectedVariant" else ""}")
-            if (isC) {
-                // FEATURE 3: récords de cardio
-                val maxDur = durData.maxOfOrNull { it.second }?.toInt() ?: 0
-                val maxInt = intData.maxOfOrNull { it.second } ?: 0f
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PRCard("⏱ Duración", "${maxDur}min", "Máxima sesión", Modifier.weight(1f))
-                    PRCard("🔥 Intensidad", if (maxInt > 0f) "${maxInt.toInt()}/10" else "—", "Máxima", Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PRCard("📅 Sesiones", "${durData.size}", "Registradas", Modifier.weight(1f))
-                    PRCard("⏳ Total", "${durData.sumOf { it.second.toInt() }}min", "Acumulado", Modifier.weight(1f))
-                }
-            } else {
-                val bsEver = vm.historyForVariant(exercise.id, selectedVariant).maxByOrNull { it.second.reps * it.second.weightKg }?.second
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (isS) PRCard("🏆 E1RM", "${vm.e1rmProgressionFor(exercise.id, selectedVariant).maxOfOrNull { it.second }?.roundToInt() ?: 0} kg", "Histórico", Modifier.weight(1f))
-                    else     PRCard("🏆 Mejor set", if (bsEver != null) "${bsEver.reps}r×${bsEver.weightKg.toInt()}kg" else "—", "reps × peso", Modifier.weight(1f))
-                    PRCard("🏋️ Peso", "${maxWeight} kg", "Máximo", Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PRCard("🔁 Reps", "$maxReps", "Máximo total", Modifier.weight(1f))
-                    PRCard("📈 Vol.", "${bestVol.roundToInt()} kg", "Mejor sesión", Modifier.weight(1f))
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (isC) {
+                    MiniStatCard("⏱", "Duración máx.", "${durData.maxOfOrNull { it.second }?.toInt() ?: 0}min", Modifier.weight(1f))
+                    MiniStatCard("🔥", "Int. máxima", "${intData.maxOfOrNull { it.second }?.toInt() ?: 0}/10", Modifier.weight(1f))
+                    MiniStatCard("📅", "Sesiones", "$totalSessions", Modifier.weight(1f))
+                } else {
+                    MiniStatCard("🏋️", "Peso máx.", "${maxWeight}kg", Modifier.weight(1f))
+                    MiniStatCard("📅", "Sesiones", "$totalSessions", Modifier.weight(1f))
+                    MiniStatCard("🔁", "Mejor reps", "$maxReps", Modifier.weight(1f))
                 }
             }
             Spacer(Modifier.height(16.dp))
         }
 
         item {
-            SectionLabel("GRÁFICAS")
+            SectionLabel("PROGRESIÓN DETALLADA")
             if (isC) {
-                // FEATURE 3: tabs de cardio: Duración / Intensidad
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ChipFlex("Duración", chartTab == 0, Modifier.weight(1f)) { chartTab = 0 }
                     ChipFlex("Intensidad", chartTab == 1, Modifier.weight(1f)) { chartTab = 1 }
@@ -2261,58 +2174,1187 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
                 }
             }
             Spacer(Modifier.height(10.dp))
-            val data: List<Pair<String, Float>>
-            val unit: String
-            val label: String
-            if (isC) {
-                data  = if (chartTab == 0) durData else intData
-                unit  = if (chartTab == 0) "min" else "/10"
-                label = if (chartTab == 0) "Duración por sesión (min)" else "Intensidad por sesión (/10)"
-            } else {
-                data  = when (chartTab) { 0 -> if (isS) e1rmData else hyData; 1 -> volData; 2 -> wData; else -> repsData }
-                unit  = when (chartTab) { 0 -> if (isS) "kg" else ""; 1 -> "kg·r"; 2 -> "kg"; else -> "r" }
-                label = when (chartTab) { 0 -> if (isS) "E1RM estimado por sesión" else "Mejor set por sesión"; 1 -> "Volumen total por sesión"; 2 -> "Peso máximo por sesión"; else -> "Reps totales por sesión" }
-            }
-            Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), color = Surface1) {
+        }
+
+        item {
+            Surface(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Surface1
+            ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSec, modifier = Modifier.padding(bottom = 10.dp))
-                    if (data.size < 2) Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                        Text("Necesitas al menos 2 sesiones\npara ver la gráfica", color = TextSec, textAlign = TextAlign.Center, fontSize = 12.sp)
-                    } else LineChart(data, exercise.color, unit, Modifier.fillMaxWidth().height(160.dp))
+                    Text(chartLabel, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSec,
+                        modifier = Modifier.padding(bottom = 10.dp))
+                    if (chartData.size < 2) {
+                        Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                            Text("Necesitas al menos 2 sesiones\npara ver la gráfica",
+                                color = TextSec, textAlign = TextAlign.Center, fontSize = 12.sp)
+                        }
+                    } else {
+                        LineChartEnhanced(chartData, exercise.color, chartUnit, Modifier.fillMaxWidth().height(160.dp))
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
         }
 
-        if (!isC && volData.size >= 2) {
+        if (!isC && (volData.size >= 2 || wData.size >= 2)) {
             item {
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), color = Surface1) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Volumen por sesión", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSec, modifier = Modifier.padding(bottom = 10.dp))
-                        BarChart(volData, exercise.color, Modifier.fillMaxWidth().height(90.dp))
+                SectionLabel("POR SESIÓN")
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    ChipFlex("Reps / Peso", sessionViewTab == 0, Modifier.weight(1f)) { sessionViewTab = 0 }
+                    ChipFlex("Volumen",     sessionViewTab == 1, Modifier.weight(1f)) { sessionViewTab = 1 }
+                }
+                Spacer(Modifier.height(10.dp))
+
+                Surface(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Surface1
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        if (sessionViewTab == 0) {
+                            val bestSetPerSession = vm.savedSessions
+                                .filter { s -> s.sets.any { it.exerciseId == exercise.id } }
+                                .sortedBy { it.date }
+                                .mapNotNull { s ->
+                                    val sets = s.sets.filter {
+                                        it.exerciseId == exercise.id &&
+                                                (selectedVariant.isBlank() || it.variant == selectedVariant)
+                                    }
+                                    val best = sets.maxByOrNull { it.reps * it.weightKg }
+                                    if (best != null) s.date to best else null
+                                }
+                            if (bestSetPerSession.size >= 2) {
+                                BarChartGrouped(
+                                    sessionData   = bestSetPerSession,
+                                    colorReps     = Color(0xFF4ECDC4),
+                                    colorWeight   = exercise.color,
+                                    modifier      = Modifier.fillMaxWidth()
+                                )
+                            } else {
+                                Box(
+                                    Modifier.fillMaxWidth().height(80.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Necesitas al menos 2 sesiones",
+                                        color    = TextSec,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            if (volData.size >= 2) {
+                                BarChartExpanded(
+                                    data     = volData,
+                                    color    = exercise.color,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-            }
-        }
-        if (isC && durData.size >= 2) {
-            item {
-                Surface(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp), color = Surface1) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Duración por sesión", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSec, modifier = Modifier.padding(bottom = 10.dp))
-                        BarChart(durData, exercise.color, Modifier.fillMaxWidth().height(90.dp))
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(10.dp))
             }
         }
 
+        if (isC && durData.size >= 2) {
+            item {
+                SectionLabel("DURACIÓN POR SESIÓN")
+                Surface(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Surface1
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        BarChartExpanded(
+                            data     = durData,
+                            color    = exercise.color,
+                            modifier = Modifier.fillMaxWidth().height(100.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+
+        item {
+            SectionLabel("CONSISTENCIA")
+            ConsistencyCard(
+                sessions   = vm.savedSessions.toList(),
+                exerciseId = exercise.id,
+                color      = exercise.color,
+                modifier   = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+        }
+
         item { SectionLabel("HISTORIAL COMPLETO${if (selectedVariant.isNotEmpty()) " · $selectedVariant" else ""}") }
+
         val sortedHistory = byDate.entries.sortedByDescending { it.key }
         sortedHistory.forEachIndexed { idx, (date, entries) ->
             item(key = "$date-$selectedVariant") {
-                CollapsibleHistoryEntry(date = date, entries = entries, isS = isS, isC = isC,
-                    maxWeight = maxWeight, isInitiallyExpanded = idx == 0)
+                CollapsibleHistoryEntry(
+                    date = date, entries = entries, isS = isS, isC = isC,
+                    maxWeight = maxWeight, isInitiallyExpanded = idx == 0
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MINI STAT CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun MiniStatCard(emoji: String, label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape    = RoundedCornerShape(14.dp),
+        color    = Surface1,
+        border   = BorderStroke(1.dp, Border)
+    ) {
+        Column(
+            Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(emoji, fontSize = 16.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = Accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(label, fontSize = 9.sp, color = TextSec, textAlign = TextAlign.Center, lineHeight = 12.sp)
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO METRIC CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun HeroMetricCard(
+    exercise: Exercise,
+    trend: ExerciseTrend?,
+    isS: Boolean,
+    isC: Boolean,
+    e1rmData: List<Pair<String, Float>>,
+    durData: List<Pair<String, Float>>,
+    volData: List<Pair<String, Float>>,
+    selectedVariant: String,
+    vm: GymViewModel,
+    modifier: Modifier = Modifier
+) {
+    val trendColor = when (trend?.trend) {
+        TrendState.PROGRESSING -> GreenOk
+        TrendState.FATIGUE     -> OrangeStk
+        else                   -> YellowWarn
+    }
+    val trendIcon = when (trend?.trend) {
+        TrendState.PROGRESSING -> "↑"
+        TrendState.FATIGUE     -> "↓"
+        else                   -> "→"
+    }
+    val trendLabel = when (trend?.trend) {
+        TrendState.PROGRESSING -> "Progresando"
+        TrendState.FATIGUE     -> "Fatiga"
+        else                   -> "Mantenimiento"
+    }
+
+    val mainValue: String
+    val mainUnit: String
+    val mainSublabel: String
+    val sparkData: List<Pair<String, Float>>
+
+    if (isC) {
+        val lastDur = durData.lastOrNull()?.second?.toInt() ?: 0
+        mainValue    = "$lastDur"
+        mainUnit     = "min"
+        mainSublabel = "última sesión · total ${durData.sumOf { it.second.toInt() }}min"
+        sparkData    = durData
+    } else if (isS) {
+        val currentE1rm = trend?.latestMetric?.roundToInt() ?: 0
+        val allTimeE1rm = e1rmData.maxOfOrNull { it.second }?.roundToInt() ?: 0
+        mainValue    = "$currentE1rm"
+        mainUnit     = "kg"
+        mainSublabel = "Histórico: ${allTimeE1rm}kg"
+        sparkData    = e1rmData
+    } else {
+        val ld = vm.savedSessions.lastOrNull { s -> s.sets.any { it.exerciseId == exercise.id } }?.date
+        val bs = vm.historyForVariant(exercise.id, selectedVariant)
+            .filter { it.first == ld }.maxByOrNull { it.second.reps * it.second.weightKg }?.second
+        mainValue    = if (bs != null) "${bs.reps}r×${bs.weightKg.toInt()}" else "—"
+        mainUnit     = "kg"
+        mainSublabel = "mejor set · vol. ${volData.lastOrNull()?.second?.roundToInt() ?: 0}kg"
+        sparkData    = volData
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(18.dp),
+        color    = Surface1,
+        border   = BorderStroke(1.dp, exercise.color.copy(alpha = 0.25f))
+    ) {
+        Box {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(exercise.color, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            )
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 14.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.Top
+                ) {
+                    Column {
+                        Text(
+                            if (isS) "E1RM actual" else if (isC) "Duración" else "Mejor set",
+                            fontSize = 10.sp, color = TextSec,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.8.sp
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                mainValue,
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Accent,
+                                lineHeight = 40.sp,
+                                letterSpacing = (-1).sp
+                            )
+                            if (!(!isS && !isC)) {
+                                Text(
+                                    mainUnit,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Accent,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                            }
+                        }
+                        Text(mainSublabel, fontSize = 11.sp, color = TextSec)
+                    }
+                    trend?.let { t ->
+                        Column(horizontalAlignment = Alignment.End) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = trendColor.copy(alpha = 0.1f),
+                                border = BorderStroke(1.dp, trendColor.copy(alpha = 0.3f))
+                            ) {
+                                Column(
+                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(trendIcon, fontSize = 18.sp, color = trendColor, fontWeight = FontWeight.Black)
+                                    Text(trendLabel, fontSize = 9.sp, color = trendColor, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            if (t.pctChange != 0f) {
+                                Spacer(Modifier.height(6.dp))
+                                val sign = if (t.pctChange > 0) "+" else ""
+                                Text(
+                                    "$sign${t.pctChange.roundToInt()}% vs 5",
+                                    fontSize = 10.sp,
+                                    color = if (t.pctChange > 0) GreenOk else RedBad,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (sparkData.size >= 2) {
+                    Spacer(Modifier.height(12.dp))
+                    HeroSparkline(sparkData, exercise.color, Modifier.fillMaxWidth().height(48.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(
+                            formatDate(sparkData.first().first),
+                            fontSize = 9.sp, color = TextTert
+                        )
+                        Text(
+                            formatDate(sparkData.last().first),
+                            fontSize = 9.sp, color = TextSec, fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO SPARKLINE
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun HeroSparkline(data: List<Pair<String, Float>>, color: Color, modifier: Modifier = Modifier) {
+    if (data.size < 2) return
+    val values = data.map { it.second }
+    val minV   = values.min()
+    val maxV   = values.max()
+    val range  = if (maxV == minV) 1f else maxV - minV
+
+    Canvas(modifier) {
+        val w    = size.width
+        val h    = size.height
+        val padV = 6f
+        val dH   = h - padV * 2
+        val sx   = w / (data.size - 1).toFloat()
+
+        fun xAt(i: Int)   = i * sx
+        fun yAt(v: Float) = padV + dH * (1f - (v - minV) / range)
+
+        val fillPath = Path().apply {
+            moveTo(xAt(0), yAt(values[0]))
+            for (i in 1 until data.size) {
+                val cx = (xAt(i - 1) + xAt(i)) / 2f
+                cubicTo(cx, yAt(values[i - 1]), cx, yAt(values[i]), xAt(i), yAt(values[i]))
+            }
+            lineTo(xAt(data.size - 1), h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(
+            fillPath,
+            brush = Brush.verticalGradient(
+                listOf(color.copy(alpha = 0.22f), Color.Transparent),
+                startY = padV, endY = h
+            )
+        )
+
+        val linePath = Path().apply {
+            moveTo(xAt(0), yAt(values[0]))
+            for (i in 1 until data.size) {
+                val cx = (xAt(i - 1) + xAt(i)) / 2f
+                cubicTo(cx, yAt(values[i - 1]), cx, yAt(values[i]), xAt(i), yAt(values[i]))
+            }
+        }
+        drawPath(linePath, color, style = Stroke(width = 2f, cap = StrokeCap.Round))
+
+        val lastX = xAt(data.size - 1)
+        val lastY = yAt(values.last())
+        drawCircle(color.copy(alpha = 0.25f), radius = 10f, center = Offset(lastX, lastY))
+        drawCircle(color, radius = 4f, center = Offset(lastX, lastY))
+        drawCircle(Surface1, radius = 2f, center = Offset(lastX, lastY))
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINE CHART ENHANCED
+// FIX: removed duplicate BoxWithConstraints for "values above points"
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun LineChartEnhanced(
+    data: List<Pair<String, Float>>,
+    color: Color,
+    unit: String,
+    modifier: Modifier = Modifier
+) {
+    if (data.size < 2) return
+
+    val values  = data.map { it.second }
+    val minV    = values.min()
+    val maxV    = values.max()
+    val range   = if (maxV == minV) 1f else maxV - minV
+    val maxIdx  = values.indexOf(maxV)
+    val lastIdx = data.size - 1
+
+    val padTDp = 28.dp
+    val padBDp = 22.dp
+    val padLDp = 36.dp
+    val padRDp = 12.dp
+
+    val padTPx = 56f
+    val padBPx = 44f
+    val padLPx = 72f
+    val padRPx = 24f
+
+    Box(modifier) {
+
+        Canvas(Modifier.fillMaxSize()) {
+            val w  = size.width
+            val h  = size.height
+            val dW = w - padLPx - padRPx
+            val dH = h - padTPx - padBPx
+            if (dW <= 0f || dH <= 0f) return@Canvas
+            val sx = dW / (data.size - 1).toFloat()
+
+            fun xAt(i: Int)   = padLPx + i * sx
+            fun yAt(v: Float) = padTPx + dH * (1f - (v - minV) / range)
+
+            for (g in 0..3) {
+                val gy = padTPx + dH * (g / 3f)
+                drawLine(Border, Offset(padLPx, gy), Offset(w - padRPx, gy), strokeWidth = 0.5f)
+            }
+
+            val maxY = yAt(maxV)
+            drawLine(
+                color       = Accent.copy(alpha = 0.35f),
+                start       = Offset(padLPx, maxY),
+                end         = Offset(w - padRPx, maxY),
+                strokeWidth = 1f,
+                pathEffect  = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 4f))
+            )
+
+            val fillPath = Path().apply {
+                moveTo(xAt(0), yAt(values[0]))
+                for (i in 1 until data.size) {
+                    val cx = (xAt(i - 1) + xAt(i)) / 2f
+                    cubicTo(cx, yAt(values[i - 1]), cx, yAt(values[i]), xAt(i), yAt(values[i]))
+                }
+                lineTo(xAt(lastIdx), h - padBPx)
+                lineTo(xAt(0), h - padBPx)
+                close()
+            }
+            drawPath(
+                fillPath,
+                Brush.verticalGradient(
+                    listOf(color.copy(alpha = 0.22f), Color.Transparent),
+                    startY = padTPx, endY = h - padBPx
+                )
+            )
+
+            val linePath = Path().apply {
+                moveTo(xAt(0), yAt(values[0]))
+                for (i in 1 until data.size) {
+                    val cx = (xAt(i - 1) + xAt(i)) / 2f
+                    cubicTo(cx, yAt(values[i - 1]), cx, yAt(values[i]), xAt(i), yAt(values[i]))
+                }
+            }
+            drawPath(linePath, color, style = Stroke(width = 2.5f, cap = StrokeCap.Round))
+
+            data.indices.forEach { i ->
+                val px     = xAt(i)
+                val py     = yAt(values[i])
+                val isMax  = i == maxIdx
+                val isLast = i == lastIdx
+                val r = when {
+                    isMax && isLast -> 7f
+                    isMax || isLast -> 6f
+                    else            -> 3.5f
+                }
+                if (isMax || isLast) {
+                    drawCircle(color.copy(alpha = 0.18f), radius = r + 6f, center = Offset(px, py))
+                }
+                drawCircle(color,    radius = r,      center = Offset(px, py))
+                drawCircle(Surface0, radius = r - 2f, center = Offset(px, py))
+            }
+        }
+
+        // Y axis labels
+        Column(
+            Modifier
+                .fillMaxHeight()
+                .width(padLDp)
+                .padding(top = padTDp, bottom = padBDp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            for (g in 0..3) {
+                val gVal = maxV - range * (g / 3f)
+                Text(
+                    text      = "${gVal.roundToInt()}$unit",
+                    fontSize  = 8.sp,
+                    color     = TextTert,
+                    modifier  = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End
+                )
+            }
+        }
+
+        // "máx" label
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = padTDp, end = padRDp)
+        ) {
+            Text(
+                "máx",
+                fontSize   = 7.sp,
+                color      = Accent.copy(alpha = 0.7f),
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Values above points (single block — duplicate removed)
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val totalWDp = maxWidth.value
+            val totalHDp = maxHeight.value
+            val chartWDp = totalWDp - padLDp.value - padRDp.value
+            val chartHDp = totalHDp - padTDp.value - padBDp.value
+            val sxDp     = if (data.size > 1) chartWDp / (data.size - 1) else chartWDp
+
+            data.indices.forEach { i ->
+                val v      = values[i]
+                val xDp    = padLDp.value + i * sxDp
+                val yFrac  = 1f - (v - minV) / range
+                val yDp    = padTDp.value + chartHDp * yFrac
+                val isMax  = i == maxIdx
+                val isLast = i == lastIdx
+                val showVal = isMax || isLast || i == 0 || data.size <= 6 || i % 3 == 0
+
+                if (showVal) {
+                    val label = "${v.roundToInt()}$unit"
+                    when {
+                        isMax && isLast -> Box(
+                            Modifier
+                                .offset(x = (xDp - 18f).dp, y = (yDp - 22f).dp)
+                                .background(Accent, RoundedCornerShape(5.dp))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        ) { Text(label, fontSize = 9.sp, color = Black, fontWeight = FontWeight.Black) }
+
+                        isMax -> Box(
+                            Modifier
+                                .offset(x = (xDp - 14f).dp, y = (yDp - 20f).dp)
+                                .background(Accent, RoundedCornerShape(5.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) { Text(label, fontSize = 8.sp, color = Black, fontWeight = FontWeight.Black) }
+
+                        isLast -> Box(
+                            Modifier
+                                .offset(x = (xDp - 14f).dp, y = (yDp - 19f).dp)
+                                .background(color.copy(alpha = 0.15f), RoundedCornerShape(5.dp))
+                                .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(5.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) { Text(label, fontSize = 8.sp, color = color, fontWeight = FontWeight.Bold) }
+
+                        else -> Box(
+                            Modifier
+                                .offset(x = (xDp - 10f).dp, y = (yDp - 17f).dp)
+                                .width(20.dp)
+                        ) {
+                            Text(
+                                label,
+                                fontSize  = 7.sp,
+                                color     = TextSec,
+                                textAlign = TextAlign.Center,
+                                maxLines  = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // X axis dates
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val bwcMaxW  = maxWidth.value
+            val bwcMaxH  = maxHeight.value
+            val chartWDp = bwcMaxW - padLDp.value - padRDp.value
+            val sxDp     = if (data.size > 1) chartWDp / (data.size - 1) else chartWDp
+            val yDp      = bwcMaxH - padBDp.value + 3f
+
+            fun shortDate(d: String) = try {
+                LocalDate.parse(d).format(DateTimeFormatter.ofPattern("d MMM"))
+            } catch (e: Exception) { d }
+
+            val labeled = buildSet {
+                add(0)
+                add(data.size - 1)
+                if (maxIdx != 0 && maxIdx != data.size - 1) add(maxIdx)
+            }
+
+            labeled.forEach { i ->
+                val xDp    = padLDp.value + i * sxDp
+                val isMax  = i == maxIdx
+                val isLast = i == lastIdx
+                Box(
+                    Modifier
+                        .offset(x = (xDp - 14f).dp, y = yDp.dp)
+                        .width(28.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        shortDate(data[i].first),
+                        fontSize   = 8.sp,
+                        color      = when {
+                            isMax && isLast -> Accent
+                            isMax           -> Accent.copy(alpha = 0.8f)
+                            isLast          -> color
+                            else            -> TextTert
+                        },
+                        fontWeight = if (isMax || isLast) FontWeight.Bold else FontWeight.Normal,
+                        textAlign  = TextAlign.Center,
+                        maxLines   = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BAR CHART EXPANDED
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun BarChartExpanded(
+    data: List<Pair<String, Float>>,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    if (data.isEmpty()) return
+
+    val maxVal = data.maxOf { it.second }
+    val maxIdx = data.indexOfFirst { it.second == maxVal }
+
+    val barZoneHeightDp   = 80.dp
+    val labelZoneHeightDp = 20.dp
+
+    Column(modifier) {
+        Box(Modifier.height(barZoneHeightDp + labelZoneHeightDp)) {
+
+            Canvas(Modifier.fillMaxWidth().height(barZoneHeightDp).align(Alignment.TopStart)) {
+                val w    = size.width
+                val h    = size.height
+                val n    = data.size
+                val gap  = (w * 0.018f).coerceAtLeast(2f)
+                val barW = (w - gap * (n - 1)) / n
+                val padB = 4f
+
+                data.forEachIndexed { i, (_, v) ->
+                    val ratio  = if (maxVal == 0f) 0f else v / maxVal
+                    val bH     = ((h - padB) * ratio).coerceAtLeast(4f)
+                    val left   = i * (barW + gap)
+                    val top    = h - padB - bH
+                    val isBest = i == maxIdx
+                    val alpha  = if (isBest) 1f else 0.28f + 0.42f * ratio
+
+                    drawRoundRect(
+                        color        = color.copy(alpha = alpha),
+                        topLeft      = Offset(left, top),
+                        size         = Size(barW, bH),
+                        cornerRadius = CornerRadius(barW * 0.35f)
+                    )
+                    if (isBest) {
+                        drawRoundRect(
+                            color        = Accent,
+                            topLeft      = Offset(left, top),
+                            size         = Size(barW, 3f),
+                            cornerRadius = CornerRadius(2f)
+                        )
+                    }
+                }
+            }
+
+            BoxWithConstraints(Modifier.fillMaxWidth().height(barZoneHeightDp).align(Alignment.TopStart)) {
+                val w    = maxWidth
+                val n    = data.size
+                val gap  = (w.value * 0.018f).coerceAtLeast(2f)
+                val barW = (w.value - gap * (n - 1)) / n
+                val cx   = maxIdx * (barW + gap) + barW / 2f
+                val label = if (maxVal >= 1000f) "${"%.1f".format(maxVal / 1000f)}K" else "${maxVal.roundToInt()}"
+
+                Box(
+                    Modifier.offset(x = (cx - 16f).dp, y = 0.dp).width(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(label, fontSize = 9.sp, color = Accent, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+                }
+            }
+
+            BoxWithConstraints(
+                Modifier.fillMaxWidth().height(labelZoneHeightDp).align(Alignment.BottomStart)
+            ) {
+                val w    = maxWidth
+                val n    = data.size
+                val gap  = (w.value * 0.018f).coerceAtLeast(2f)
+                val barW = (w.value - gap * (n - 1)) / n
+
+                fun shortDate(d: String) = try {
+                    LocalDate.parse(d).format(DateTimeFormatter.ofPattern("d/M"))
+                } catch (e: Exception) { "" }
+
+                val labeled = buildSet {
+                    add(0)
+                    add(n - 1)
+                    if (maxIdx != 0 && maxIdx != n - 1) add(maxIdx)
+                }
+
+                labeled.forEach { i ->
+                    val (date, _) = data[i]
+                    val cx = i * (barW + gap) + barW / 2f
+                    val isBest = i == maxIdx
+                    Box(
+                        Modifier.offset(x = (cx - 14f).dp, y = 0.dp).width(28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            shortDate(date),
+                            fontSize   = 8.sp,
+                            color      = if (isBest) Accent else TextTert,
+                            fontWeight = if (isBest) FontWeight.Bold else FontWeight.Normal,
+                            textAlign  = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BAR CHART GROUPED
+// FIX: moved "Fila de valores" Row outside Box/BoxWithConstraints — it now sits
+//      at the bottom of Column(modifier) as a proper sibling of the chart Box.
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun BarChartGrouped(
+    sessionData: List<Pair<String, WorkoutSet>>,
+    colorReps: Color,
+    colorWeight: Color,
+    modifier: Modifier = Modifier
+) {
+    if (sessionData.isEmpty()) return
+
+    val repsValues   = sessionData.map { it.second.reps.toFloat() }
+    val weightValues = sessionData.map { it.second.weightKg }
+    val maxReps      = repsValues.max().coerceAtLeast(1f)
+    val maxWeight    = weightValues.max().coerceAtLeast(1f)
+    val maxRepsIdx   = repsValues.indexOf(repsValues.max())
+    val maxWIdx      = weightValues.indexOf(weightValues.max())
+    val n            = sessionData.size
+
+    val barZoneH   = 90.dp
+    val labelZoneH = 18.dp
+    val axisLabelW = 26.dp
+
+    // Pre-compute last/best sets for the summary row (outside composable lambdas)
+    val lastWs     = sessionData.last().second
+    val bestRepsWs = sessionData[maxRepsIdx].second
+    val bestWWs    = sessionData[maxWIdx].second
+
+    Column(modifier) {
+
+        // ── Header with axis labels ──────────────────────────────────────────
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = axisLabelW),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.size(8.dp).background(colorReps, RoundedCornerShape(2.dp)))
+                Text("Reps", fontSize = 9.sp, color = colorReps, fontWeight = FontWeight.SemiBold)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Peso kg", fontSize = 9.sp, color = colorWeight, fontWeight = FontWeight.SemiBold)
+                Box(Modifier.size(8.dp).background(colorWeight, RoundedCornerShape(2.dp)))
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // ── Chart Box (bars + Y axes + date labels) ──────────────────────────
+        Box(Modifier.height(barZoneH + labelZoneH)) {
+
+            // Bars canvas
+            Canvas(
+                Modifier
+                    .padding(start = axisLabelW, end = axisLabelW)
+                    .fillMaxWidth()
+                    .height(barZoneH)
+                    .align(Alignment.TopCenter)
+            ) {
+                val w      = size.width
+                val h      = size.height
+                val padB   = 4f
+                val drawH  = h - padB
+                val slotW  = w / n
+                val barW   = slotW * 0.38f
+                val innerG = slotW * 0.04f
+                val slotPad = slotW * 0.1f
+
+                sessionData.forEachIndexed { i, (_, ws) ->
+                    val rFrac    = repsValues[i] / maxReps
+                    val wFrac    = weightValues[i] / maxWeight
+                    val rH       = (drawH * rFrac).coerceAtLeast(4f)
+                    val wH       = (drawH * wFrac).coerceAtLeast(4f)
+                    val leftSlot = i * slotW + slotPad
+
+                    val rAlpha = if (i == maxRepsIdx) 1f else 0.3f + 0.5f * rFrac
+                    drawRoundRect(
+                        color        = colorReps.copy(alpha = rAlpha),
+                        topLeft      = Offset(leftSlot, drawH - rH + padB),
+                        size         = Size(barW, rH),
+                        cornerRadius = CornerRadius(barW * 0.3f)
+                    )
+                    if (i == maxRepsIdx) {
+                        drawRoundRect(
+                            color        = Accent,
+                            topLeft      = Offset(leftSlot, drawH - rH + padB),
+                            size         = Size(barW, 3f),
+                            cornerRadius = CornerRadius(2f)
+                        )
+                    }
+
+                    val wAlpha = if (i == maxWIdx) 1f else 0.3f + 0.5f * wFrac
+                    drawRoundRect(
+                        color        = colorWeight.copy(alpha = wAlpha),
+                        topLeft      = Offset(leftSlot + barW + innerG, drawH - wH + padB),
+                        size         = Size(barW, wH),
+                        cornerRadius = CornerRadius(barW * 0.3f)
+                    )
+                    if (i == maxWIdx) {
+                        drawRoundRect(
+                            color        = Accent,
+                            topLeft      = Offset(leftSlot + barW + innerG, drawH - wH + padB),
+                            size         = Size(barW, 3f),
+                            cornerRadius = CornerRadius(2f)
+                        )
+                    }
+                }
+            }
+
+            // Left Y axis (reps)
+            Column(
+                Modifier
+                    .width(axisLabelW)
+                    .height(barZoneH)
+                    .align(Alignment.TopStart),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf(maxReps.roundToInt(), (maxReps / 2).roundToInt(), 0).forEach { v ->
+                    Text(
+                        "$v",
+                        fontSize  = 7.sp,
+                        color     = colorReps.copy(alpha = 0.7f),
+                        textAlign = TextAlign.End,
+                        modifier  = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Right Y axis (weight)
+            Column(
+                Modifier
+                    .width(axisLabelW)
+                    .height(barZoneH)
+                    .align(Alignment.TopEnd),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf(maxWeight.roundToInt(), (maxWeight / 2).roundToInt(), 0).forEach { v ->
+                    Text(
+                        "${v}k",
+                        fontSize  = 7.sp,
+                        color     = colorWeight.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Start,
+                        modifier  = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // Date labels
+            BoxWithConstraints(
+                Modifier
+                    .padding(start = axisLabelW, end = axisLabelW)
+                    .fillMaxWidth()
+                    .height(labelZoneH)
+                    .align(Alignment.BottomCenter)
+            ) {
+                val w       = maxWidth.value
+                val slotW   = w / n
+                val slotPad = slotW * 0.1f
+                val barW    = slotW * 0.38f
+
+                fun shortDate(d: String) = try {
+                    LocalDate.parse(d).format(DateTimeFormatter.ofPattern("d/M"))
+                } catch (e: Exception) { "" }
+
+                val labeled = buildSet {
+                    add(0); add(n - 1)
+                    if (maxRepsIdx != 0 && maxRepsIdx != n - 1) add(maxRepsIdx)
+                    if (maxWIdx != 0 && maxWIdx != n - 1) add(maxWIdx)
+                }
+
+                labeled.forEach { i ->
+                    val cx   = i * slotW + slotPad + barW
+                    val isPR = i == maxRepsIdx || i == maxWIdx
+                    Box(
+                        Modifier.offset(x = (cx - 12f).dp).width(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            shortDate(sessionData[i].first),
+                            fontSize   = 7.sp,
+                            color      = if (isPR) Accent else TextTert,
+                            fontWeight = if (isPR) FontWeight.Bold else FontWeight.Normal,
+                            textAlign  = TextAlign.Center
+                        )
+                    }
+                }
+            } // closes BoxWithConstraints (date labels)
+        } // closes Box (chart)
+
+        // ── Summary row (last session · best reps · best weight) ─────────────
+        Spacer(Modifier.height(6.dp))
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Surface2, RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment     = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("Última sesión", fontSize = 9.sp, color = TextSec)
+                Text(
+                    "${lastWs.reps}r × ${lastWs.weightKg.let { if (it == it.toLong().toFloat()) it.toLong().toString() else it.toString() }}kg",
+                    fontSize   = 14.sp,
+                    fontWeight = FontWeight.Black,
+                    color      = Accent
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Mejor reps", fontSize = 9.sp, color = TextSec)
+                Text(
+                    "${bestRepsWs.reps}r",
+                    fontSize   = 14.sp,
+                    fontWeight = FontWeight.Black,
+                    color      = colorReps
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("Mejor peso", fontSize = 9.sp, color = TextSec)
+                Text(
+                    "${bestWWs.weightKg.let { if (it == it.toLong().toFloat()) it.toLong().toString() else it.toString() }}kg",
+                    fontSize   = 14.sp,
+                    fontWeight = FontWeight.Black,
+                    color      = colorWeight
+                )
+            }
+        }
+    } // closes Column(modifier)
+} // closes BarChartGrouped
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSISTENCY CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+fun ConsistencyCard(
+    sessions: List<Session>,
+    exerciseId: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val exSessions = sessions
+        .filter { s -> s.sets.any { it.exerciseId == exerciseId } }
+        .sortedBy { it.date }
+
+    if (exSessions.isEmpty()) return
+
+    val firstDate = try { LocalDate.parse(exSessions.first().date) } catch (e: Exception) { return }
+    val today       = LocalDate.now()
+    val firstMonday = firstDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val lastMonday  = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+    data class WeekInfo(val monday: LocalDate, val trained: Boolean, val isPrWeek: Boolean)
+
+    val globalMaxE1rm = exSessions.flatMap { s ->
+        s.sets.filter { it.exerciseId == exerciseId }
+            .map { estimatedOneRM(it.weightKg, it.reps) }
+    }.maxOrNull() ?: 0f
+
+    val globalMaxVol = exSessions.maxOfOrNull { s ->
+        s.sets.filter { it.exerciseId == exerciseId }
+            .sumOf { (it.reps * it.weightKg).toDouble() }.toFloat()
+    } ?: 0f
+
+    val weeks = mutableListOf<WeekInfo>()
+    var cursor = firstMonday
+    while (!cursor.isAfter(lastMonday)) {
+        val sunday = cursor.plusDays(6)
+        val weekSessions = exSessions.filter { s ->
+            try {
+                val d = LocalDate.parse(s.date)
+                !d.isBefore(cursor) && !d.isAfter(sunday)
+            } catch (e: Exception) { false }
+        }
+        val trained = weekSessions.isNotEmpty()
+        val isPrWeek = weekSessions.any { s ->
+            val sets = s.sets.filter { it.exerciseId == exerciseId }
+            val e1rm = bestE1RM(sets)
+            val vol  = sets.sumOf { (it.reps * it.weightKg).toDouble() }.toFloat()
+            (globalMaxE1rm > 0f && e1rm >= globalMaxE1rm * 0.999f) ||
+                    (globalMaxVol  > 0f && vol  >= globalMaxVol  * 0.999f)
+        }
+        weeks.add(WeekInfo(cursor, trained, isPrWeek))
+        cursor = cursor.plusWeeks(1)
+    }
+
+    val totalWeeks   = weeks.size
+    val trainedWeeks = weeks.count { it.trained }
+    val adherence    = if (totalWeeks > 0) (trainedWeeks * 100) / totalWeeks else 0
+    val streak = run {
+        var s = 0
+        for (w in weeks.reversed()) {
+            if (w.trained) s++ else if (w.monday != lastMonday) break
+        }
+        s
+    }
+
+    val blockSize = when {
+        totalWeeks <= 8  -> 32.dp
+        totalWeeks <= 12 -> 26.dp
+        totalWeeks <= 16 -> 22.dp
+        else             -> 18.dp
+    }
+    val blockGap = when {
+        totalWeeks <= 8  -> 5.dp
+        totalWeeks <= 12 -> 4.dp
+        else             -> 3.dp
+    }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(16.dp),
+        color    = Surface1,
+        border   = BorderStroke(1.dp, Border)
+    ) {
+        Column(Modifier.padding(14.dp)) {
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Adherencia", fontSize = 10.sp, color = TextSec)
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            "$adherence",
+                            fontSize   = 22.sp,
+                            fontWeight = FontWeight.Black,
+                            color      = Accent
+                        )
+                        Text(
+                            "%",
+                            fontSize   = 12.sp,
+                            color      = Accent,
+                            fontWeight = FontWeight.Bold,
+                            modifier   = Modifier.padding(bottom = 3.dp)
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Racha actual", fontSize = 10.sp, color = TextSec)
+                    Text(
+                        "$streak sem",
+                        fontSize   = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color      = if (streak >= 3) GreenOk else TextPrim
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Total", fontSize = 10.sp, color = TextSec)
+                    Text(
+                        "$trainedWeeks/$totalWeeks sem",
+                        fontSize   = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        color      = TextPrim
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = Border)
+            Spacer(Modifier.height(10.dp))
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(blockGap),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(weeks.size) { i ->
+                    val week          = weeks[i]
+                    val isCurrentWeek = week.monday == lastMonday
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Box(
+                            Modifier
+                                .size(blockSize)
+                                .background(
+                                    color = when {
+                                        week.isPrWeek -> Accent.copy(alpha = 0.18f)
+                                        week.trained  -> color.copy(alpha = 0.22f)
+                                        else          -> Surface2
+                                    },
+                                    shape = RoundedCornerShape(5.dp)
+                                )
+                                .then(when {
+                                    week.isPrWeek -> Modifier.border(1.dp,   Accent.copy(alpha = 0.55f), RoundedCornerShape(5.dp))
+                                    isCurrentWeek -> Modifier.border(1.dp,   color.copy(alpha = 0.45f),  RoundedCornerShape(5.dp))
+                                    !week.trained -> Modifier.border(0.5.dp, Border,                     RoundedCornerShape(5.dp))
+                                    else          -> Modifier
+                                }),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when {
+                                week.isPrWeek ->
+                                    Text("★", fontSize = (blockSize.value * 0.38f).sp, color = Accent)
+                                week.trained ->
+                                    Box(
+                                        Modifier
+                                            .size(blockSize * 0.3f)
+                                            .background(color, CircleShape)
+                                    )
+                            }
+                        }
+
+                        if (i == 0 || i % 4 == 3 || i == weeks.size - 1) {
+                            Text(
+                                "S${i + 1}",
+                                fontSize  = 7.sp,
+                                color     = TextTert,
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            Spacer(Modifier.height(9.dp))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.size(8.dp).background(color.copy(alpha = 0.22f), RoundedCornerShape(2.dp)))
+                    Text("Entrenado", fontSize = 9.sp, color = TextSec)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .background(Accent.copy(alpha = 0.18f), RoundedCornerShape(2.dp))
+                            .border(1.dp, Accent.copy(alpha = 0.55f), RoundedCornerShape(2.dp))
+                    )
+                    Text("PR semana", fontSize = 9.sp, color = TextSec)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .background(Surface2, RoundedCornerShape(2.dp))
+                            .border(0.5.dp, Border, RoundedCornerShape(2.dp))
+                    )
+                    Text("Sin sesión", fontSize = 9.sp, color = TextSec)
+                }
             }
         }
     }
@@ -2480,7 +3522,7 @@ fun SessionScreen(vm: GymViewModel, onBack: () -> Unit, onSave: () -> Unit) {
                     knownVariants = vm.knownVariantsFor(exercise.id),
                     suggestedVariants = variantSuggestionsFor(exercise),
                     onDismiss = { editingSet = null }
-                ) { newMins, newIntensity, newVariant, newNote ->
+                ) { newMins: Int, newIntensity: Float, newVariant: String, newNote: String ->
                     vm.editSet(setToEdit, newMins, newIntensity, newVariant, newNote, context)
                     editingSet = null
                 }
@@ -2492,7 +3534,7 @@ fun SessionScreen(vm: GymViewModel, onBack: () -> Unit, onSave: () -> Unit) {
                     knownVariants = vm.knownVariantsFor(exercise.id),
                     suggestedVariants = variantSuggestionsFor(exercise),
                     onDismiss = { editingSet = null }
-                ) { newReps, newWeight, newVariant, newNote ->
+                ) { newReps: Int, newWeight: Float, newVariant: String, newNote: String ->
                     vm.editSet(setToEdit, newReps, newWeight, newVariant, newNote, context)
                     editingSet = null
                 }
@@ -2630,7 +3672,6 @@ fun CollapsibleVariantAndNoteSection(
 // SUMMARY SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 
-
 @Composable
 fun SummaryScreen(vm: GymViewModel, onBack: () -> Unit) {
     val lastSession = vm.savedSessions.lastOrNull()
@@ -2717,26 +3758,17 @@ fun VariantChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURE 1: Variante y nota colapsables — sección reutilizable
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Sección de variante — solo se muestra si el ejercicio tiene variantes configuradas.
- * Chips de selección rápida + campo libre.
- */
 @Composable
 fun VariantSection(
     variantText: String,
-    configuredVariants: List<String>,   // lista guardada en VM para este ejercicio
-    knownUsedVariants: List<String>,    // variantes ya usadas en historial
+    configuredVariants: List<String>,
+    knownUsedVariants: List<String>,
     onVariantChange: (String) -> Unit
 ) {
-    // Combinar las configuradas + las usadas históricamente (sin duplicar)
     val allChips = remember(configuredVariants, knownUsedVariants) {
         (configuredVariants + knownUsedVariants).distinct()
     }
-    if (allChips.isEmpty()) return   // no configuradas → no mostrar nada
+    if (allChips.isEmpty()) return
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -2763,7 +3795,6 @@ fun VariantSection(
                 }
             }
         }
-        // Campo libre por si el usuario quiere escribir una variante nueva
         OutlinedTextField(
             value = variantText,
             onValueChange = onVariantChange,
@@ -2780,10 +3811,6 @@ fun VariantSection(
     }
 }
 
-/**
- * Nota libre — siempre colapsada por defecto.
- * Aparece como botón discreto; al pulsarlo expande el campo de texto.
- */
 @Composable
 fun NoteSection(
     noteText: String,
@@ -2846,7 +3873,7 @@ fun NoteSection(
 fun LogSetDialog(
     exercise: Exercise,
     lastSet: WorkoutSet?,
-    vm: GymViewModel,                   // ← NUEVO parámetro
+    vm: GymViewModel,
     knownVariants: List<String>,
     suggestedVariants: List<String>,
     onDismiss: () -> Unit,
@@ -2938,7 +3965,6 @@ fun LogSetDialog(
                     }
                 }
 
-                // FEATURE 1: sección colapsable
                 item {
                     if (vm.hasVariants(exercise.id)) {
                         HorizontalDivider(color = Border)
@@ -2952,7 +3978,6 @@ fun LogSetDialog(
                         Spacer(Modifier.height(4.dp))
                     }
                 }
-                // Nota (siempre disponible, colapsada por defecto)
                 item {
                     NoteSection(
                         noteText      = noteText,
@@ -2979,8 +4004,15 @@ fun LogSetDialog(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FEATURE 3: Dialog de cardio (tiempo + intensidad)
+// Color helper — defined before dialogs that use it
 // ─────────────────────────────────────────────────────────────────────────────
+
+fun intensityColor(level: Int): Color = when {
+    level <= 3 -> GreenOk
+    level <= 6 -> YellowWarn
+    level <= 8 -> OrangeStk
+    else       -> RedBad
+}
 
 @Composable
 fun LogCardioDialog(
@@ -3221,14 +4253,6 @@ fun EditCardioDialog(
             }
         }
     }
-}
-
-/** Color de intensidad: verde → amarillo → rojo */
-fun intensityColor(level: Int): Color = when {
-    level <= 3 -> GreenOk
-    level <= 6 -> YellowWarn
-    level <= 8 -> OrangeStk
-    else       -> RedBad
 }
 
 @Composable
