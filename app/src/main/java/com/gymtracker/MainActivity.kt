@@ -35,6 +35,7 @@ import com.gymtracker.presentation.screens.train.SummaryScreen
 import com.gymtracker.presentation.theme.*
 import dagger.hilt.android.AndroidEntryPoint
 import android.os.Bundle
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -57,7 +58,7 @@ val TABS = listOf(Tab.Home, Tab.Train, Tab.Calendar, Tab.Progress)
 @Composable
 fun GymApp() {
     val context = LocalContext.current
-    val vm: GymViewModel = viewModel()
+    val vm: GymViewModel = hiltViewModel()
 
     LaunchedEffect(Unit) { vm.loadAll(context) }
 

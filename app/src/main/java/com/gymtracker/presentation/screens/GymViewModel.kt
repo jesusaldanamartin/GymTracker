@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.gymtracker.data.local.DataMigration
 import com.gymtracker.data.local.ExerciseDefaults
 import com.gymtracker.data.local.SeedData
 import com.gymtracker.data.local.currentWeekDates
@@ -21,10 +23,18 @@ import com.gymtracker.domain.model.WorkoutSet
 import com.gymtracker.domain.model.bestE1RM
 import com.gymtracker.domain.model.bestHypertrophyScore
 import com.gymtracker.domain.model.estimatedOneRM
+import com.gymtracker.domain.repository.ExerciseRepository
+import com.gymtracker.domain.repository.WorkoutRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
 import java.time.LocalDate
-import com.gymtracker.data.local.Storage
+import javax.inject.Inject
 
-class GymViewModel : ViewModel() {
+@HiltViewModel
+class GymViewModel @Inject constructor(
+    private val workoutRepository: WorkoutRepository,
+    private val exerciseRepository: ExerciseRepository
+) : ViewModel() {
 
     var sets              = mutableStateListOf<WorkoutSet>();  private set
     var savedSessions     = mutableStateListOf<Session>();     private set
@@ -48,7 +58,9 @@ class GymViewModel : ViewModel() {
     fun setVariants(exerciseId: Int, variants: List<String>, context: Context) {
         if (variants.isEmpty()) exerciseVariants.remove(exerciseId)
         else exerciseVariants[exerciseId] = variants
-        Storage.saveExerciseVariants(context, exerciseVariants.toMap())
+        viewModelScope.launch {
+            exerciseRepository.saveExerciseVariants(exerciseVariants.toMap())
+        }
     }
 
     var sessionDate by mutableStateOf(LocalDate.now().toString())
@@ -87,9 +99,9 @@ class GymViewModel : ViewModel() {
 
     val weekStats: WeekStats
         get() {
-            val weekDates = currentWeekDates().toSet()
+            val weekDates    = currentWeekDates().toSet()
             val weekSessions = savedSessions.filter { it.date in weekDates }
-            val allSets = weekSessions.flatMap { it.sets }
+            val allSets      = weekSessions.flatMap { it.sets }
             return WeekStats(
                 daysTrainedThisWeek = weekSessions.map { it.date }.toSet().size,
                 sessionsThisWeek    = weekSessions.size,
@@ -111,104 +123,162 @@ class GymViewModel : ViewModel() {
 
     fun logSet(exercise: Exercise, reps: Int, weightKg: Float, variant: String, note: String, context: Context) {
         sets.add(WorkoutSet(exercise.id, exercise.name, reps, weightKg, variant, note))
-        Storage.savePendingSession(context, sets.toList(), sessionDate)
+        viewModelScope.launch {
+            workoutRepository.savePendingSession(sets.toList(), sessionDate)
+        }
     }
 
     fun editSet(oldSet: WorkoutSet, newReps: Int, newWeightKg: Float, newVariant: String, newNote: String, context: Context) {
         val idx = sets.indexOf(oldSet); if (idx < 0) return
         sets[idx] = oldSet.copy(reps = newReps, weightKg = newWeightKg, variant = newVariant, note = newNote)
-        Storage.savePendingSession(context, sets.toList(), sessionDate)
+        viewModelScope.launch {
+            workoutRepository.savePendingSession(sets.toList(), sessionDate)
+        }
     }
 
     fun deleteSet(set: WorkoutSet, context: Context? = null) {
         sets.remove(set)
-        if (context != null) {
-            if (sets.isEmpty()) Storage.clearPendingSession(context)
-            else Storage.savePendingSession(context, sets.toList(), sessionDate)
+        viewModelScope.launch {
+            if (sets.isEmpty()) workoutRepository.clearPendingSession()
+            else workoutRepository.savePendingSession(sets.toList(), sessionDate)
         }
     }
 
     fun saveSession(context: Context) {
         if (sets.isEmpty()) return
-        val idx = savedSessions.indexOfFirst { it.date == sessionDate }
-        if (idx >= 0) savedSessions[idx] = Session(sessionDate, savedSessions[idx].sets + sets.toList())
-        else savedSessions.add(Session(sessionDate, sets.toList()))
-        Storage.save(context, savedSessions.toList())
-        Storage.clearPendingSession(context)
-        sets.clear(); sessionDate = LocalDate.now().toString()
+        viewModelScope.launch {
+            val existingSession = savedSessions.find { it.date == sessionDate }
+            val newSession = if (existingSession != null) {
+                Session(sessionDate, existingSession.sets + sets.toList())
+            } else {
+                Session(sessionDate, sets.toList())
+            }
+            workoutRepository.saveSession(newSession)
+            workoutRepository.clearPendingSession()
+            sets.clear()
+            sessionDate = LocalDate.now().toString()
+            loadSessions()
+        }
     }
 
     fun loadAll(context: Context) {
-        savedSessions.clear()
-        savedSessions.addAll(Storage.load(context))
-        customExercises.clear()
-        customExercises.addAll(Storage.loadCustomExercises(context))
-        importedExercises.clear()
-        importedExercises.addAll(Storage.loadImportedExercises(context))
-
-        val savedVariants = Storage.loadExerciseVariants(context)
-        exerciseVariants.clear()
-        if (savedVariants.isEmpty()) {
-            ExerciseDefaults.VARIANT_SUGGESTIONS_BY_EXERCISE
-                .forEach { (id, list) -> exerciseVariants[id] = list }
-            Storage.saveExerciseVariants(context, exerciseVariants.toMap())
-        } else {
-            exerciseVariants.putAll(savedVariants)
+        viewModelScope.launch {
+            // Espera a que la migración termine si está en curso
+            if (!DataMigration.isMigrationDone(context)) {
+                kotlinx.coroutines.delay(500)
+            }
+            loadSessions()
+            loadExercises()
+            loadVariants()
+            loadPendingSession()
         }
+    }
 
-        Storage.loadPendingSession(context)?.let { (date, pendingSets) ->
-            sets.clear(); sets.addAll(pendingSets); sessionDate = date
+    private fun loadSessions() {
+        viewModelScope.launch {
+            workoutRepository.getSessions().collect { sessions ->
+                savedSessions.clear()
+                savedSessions.addAll(sessions)
+            }
+        }
+    }
+
+    private fun loadExercises() {
+        viewModelScope.launch {
+            exerciseRepository.getCustomExercises().collect { exercises ->
+                customExercises.clear()
+                customExercises.addAll(exercises)
+            }
+        }
+        viewModelScope.launch {
+            exerciseRepository.getImportedExercises().collect { exercises ->
+                importedExercises.clear()
+                importedExercises.addAll(exercises)
+            }
+        }
+    }
+
+    private fun loadVariants() {
+        viewModelScope.launch {
+            exerciseRepository.getExerciseVariants().collect { variants ->
+                exerciseVariants.clear()
+                if (variants.isEmpty()) {
+                    ExerciseDefaults.VARIANT_SUGGESTIONS_BY_EXERCISE
+                        .forEach { (id, list) -> exerciseVariants[id] = list }
+                    exerciseRepository.saveExerciseVariants(exerciseVariants.toMap())
+                } else {
+                    exerciseVariants.putAll(variants)
+                }
+            }
+        }
+    }
+
+    private fun loadPendingSession() {
+        viewModelScope.launch {
+            workoutRepository.getPendingSession().collect { pending ->
+                if (pending != null) {
+                    sets.clear()
+                    sets.addAll(pending.second)
+                    sessionDate = pending.first
+                }
+            }
         }
     }
 
     fun discardPendingSession(context: Context) {
-        sets.clear(); sessionDate = LocalDate.now().toString()
-        Storage.clearPendingSession(context)
+        sets.clear()
+        sessionDate = LocalDate.now().toString()
+        viewModelScope.launch {
+            workoutRepository.clearPendingSession()
+        }
     }
 
     fun deleteSetFromSession(date: String, set: WorkoutSet, context: Context) {
-        val idx = savedSessions.indexOfFirst { it.date == date }; if (idx < 0) return
-        val rem = savedSessions[idx].sets.toMutableList().also { it.remove(set) }
-        if (rem.isEmpty()) savedSessions.removeAt(idx)
-        else savedSessions[idx] = Session(date, rem)
-        Storage.save(context, savedSessions.toList())
+        viewModelScope.launch {
+            workoutRepository.deleteSetFromSession(date, set)
+            loadSessions()
+        }
     }
 
     fun deleteSession(date: String, context: Context) {
-        savedSessions.removeAll { it.date == date }
-        Storage.save(context, savedSessions.toList())
+        viewModelScope.launch {
+            workoutRepository.deleteSession(date)
+            loadSessions()
+        }
     }
 
     fun addCustomExercise(ex: Exercise, context: Context) {
-        customExercises.add(ex)
-        Storage.saveCustomExercises(context, customExercises.toList())
+        viewModelScope.launch {
+            exerciseRepository.addCustomExercise(ex)
+        }
     }
 
     fun deleteCustomExercise(ex: Exercise, context: Context) {
-        customExercises.remove(ex)
-        Storage.saveCustomExercises(context, customExercises.toList())
+        viewModelScope.launch {
+            exerciseRepository.deleteCustomExercise(ex)
+        }
     }
 
     fun nextCustomId() = (allExercises.maxOfOrNull { it.id } ?: 100) + 1
 
     fun importSessions(result: ImportResult.Success, context: Context) {
-        result.newCustomExercises.forEach { newEx ->
-            if (newEx.isCustom) {
-                if (customExercises.none { it.name.equals(newEx.name, ignoreCase = true) })
-                    customExercises.add(newEx)
-            } else {
-                if (importedExercises.none { it.name.equals(newEx.name, ignoreCase = true) } &&
-                    SeedData.EXERCISES.none { it.name.equals(newEx.name, ignoreCase = true) })
-                    importedExercises.add(newEx)
+        viewModelScope.launch {
+            result.newCustomExercises.forEach { newEx ->
+                if (newEx.isCustom) {
+                    if (customExercises.none { it.name.equals(newEx.name, ignoreCase = true) })
+                        exerciseRepository.addCustomExercise(newEx)
+                } else {
+                    if (importedExercises.none { it.name.equals(newEx.name, ignoreCase = true) } &&
+                        SeedData.EXERCISES.none { it.name.equals(newEx.name, ignoreCase = true) })
+                        exerciseRepository.saveImportedExercises(listOf(newEx))
+                }
             }
+            result.mergedSessions.forEach { session ->
+                workoutRepository.saveSession(session)
+            }
+            loadSessions()
+            loadExercises()
         }
-        if (result.newCustomExercises.any { it.isCustom })
-            Storage.saveCustomExercises(context, customExercises.toList())
-        if (result.newCustomExercises.any { !it.isCustom })
-            Storage.saveImportedExercises(context, importedExercises.toList())
-        savedSessions.clear()
-        savedSessions.addAll(result.mergedSessions)
-        Storage.save(context, savedSessions.toList())
     }
 
     fun historyFor(exerciseId: Int): List<Pair<String, WorkoutSet>> =
@@ -339,4 +409,28 @@ class GymViewModel : ViewModel() {
         }
         return routines.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
     }
+
+
+    fun exportToDownloads(context: Context): String? =
+        com.gymtracker.data.local.Storage.exportToDownloads(
+            context,
+            savedSessions.toList(),
+            allExercises
+        )
+
+    fun exportForShare(context: Context): android.net.Uri? =
+        com.gymtracker.data.local.Storage.exportForShare(
+            context,
+            savedSessions.toList(),
+            allExercises
+        )
+
+    fun importFromCsv(context: Context, uri: android.net.Uri): ImportResult =
+        com.gymtracker.data.local.Storage.importFromCsv(
+            context,
+            uri,
+            savedSessions.toList(),
+            allExercises,
+            allExercises.maxOfOrNull { it.id } ?: 100
+        )
 }

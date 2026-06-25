@@ -1,16 +1,46 @@
-# Gradle
-.gradle/
-
-# Android build outputs
-build/
-**/build/
-
-# Local config
-local.properties
-
-# IDE
+# Android Studio / IntelliJ
 .idea/
 *.iml
+*.iws
+*.ipr
+.DS_Store
+local.properties
 
-# Generated files
-.generated/
+# Gradle
+.gradle/
+build/
+**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# Kotlin
+*.class
+*.kotlin_module
+
+# APKs y builds
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Room schema export (si no quieres versionarlo)
+app/schemas/
+
+# Keystore — NUNCA subas esto
+*.jks
+*.keystore
+release/
+keystore.properties
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# NDK (cuando integres YOLO más adelante)
+obj/
+libs/
+jniLibs/

@@ -85,8 +85,6 @@ import com.gymtracker.presentation.theme.TextPrim
 import com.gymtracker.presentation.theme.TextSec
 import com.gymtracker.presentation.theme.TextTert
 import com.gymtracker.presentation.theme.YellowWarn
-import kotlin.collections.component1
-import kotlin.collections.component2
 import kotlin.math.roundToInt
 import com.gymtracker.presentation.components.BarChartExpanded
 import com.gymtracker.presentation.components.BarChartGrouped
@@ -102,7 +100,6 @@ import com.gymtracker.presentation.components.formatDate
 import com.gymtracker.presentation.components.ConfigureVariantsDialog
 import com.gymtracker.presentation.components.VariantChip
 import com.gymtracker.presentation.screens.GymViewModel
-import com.gymtracker.data.local.Storage
 
 @Composable
 fun ProgressScreen(vm: GymViewModel) {
@@ -114,10 +111,7 @@ fun ProgressScreen(vm: GymViewModel) {
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
-            val result = Storage.importFromCsv(
-                context, it, vm.savedSessions.toList(), vm.allExercises,
-                vm.allExercises.maxOfOrNull { ex -> ex.id } ?: 100
-            )
+            val result = vm.importFromCsv(context, it)
             when (result) {
                 is ImportResult.Success -> importPending = result
                 is ImportResult.Error   -> importResult  = result
@@ -126,9 +120,9 @@ fun ProgressScreen(vm: GymViewModel) {
     }
 
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) exportResult = Storage.exportToDownloads(context, vm.savedSessions.toList(), vm.allExercises) ?: ""
+        if (granted) exportResult = vm.exportToDownloads(context) ?: ""
         else {
-            Storage.exportForShare(context, vm.savedSessions.toList(), vm.allExercises)?.let { uri ->
+            vm.exportForShare(context)?.let { uri ->
                 context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                     type = "text/csv"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }, "Exportar CSV"))
@@ -138,17 +132,17 @@ fun ProgressScreen(vm: GymViewModel) {
 
     fun doDownload() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-            exportResult = Storage.exportToDownloads(context, vm.savedSessions.toList(), vm.allExercises) ?: ""
+            exportResult = vm.exportToDownloads(context) ?: ""
         else {
             val perm = android.Manifest.permission.WRITE_EXTERNAL_STORAGE
             if (ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED)
-                exportResult = Storage.exportToDownloads(context, vm.savedSessions.toList(), vm.allExercises) ?: ""
+                exportResult = vm.exportToDownloads(context) ?: ""
             else permLauncher.launch(perm)
         }
     }
 
     fun doShare() {
-        Storage.exportForShare(context, vm.savedSessions.toList(), vm.allExercises)?.let { uri ->
+        vm.exportForShare(context)?.let { uri ->
             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                 type = "text/csv"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }, "Compartir CSV"))
@@ -410,7 +404,6 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
     val allHistory    = vm.historyForVariant(exercise.id, selectedVariant)
     val maxWeight     = allHistory.maxOfOrNull { it.second.weightKg } ?: 0f
     val maxReps       = allHistory.maxOfOrNull { it.second.reps } ?: 0
-    val bestVol       = volData.maxOfOrNull { it.second } ?: 0f
     val totalSessions = if (isC) durData.size else e1rmData.size
 
     var chartTab by remember { mutableStateOf(0) }
@@ -490,16 +483,16 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
 
         item {
             HeroMetricCard(
-                exercise      = exercise,
-                trend         = trend,
-                isS           = isS,
-                isC           = isC,
-                e1rmData      = e1rmData,
-                durData       = durData,
-                volData       = volData,
+                exercise        = exercise,
+                trend           = trend,
+                isS             = isS,
+                isC             = isC,
+                e1rmData        = e1rmData,
+                durData         = durData,
+                volData         = volData,
                 selectedVariant = selectedVariant,
-                vm            = vm,
-                modifier      = Modifier.padding(horizontal = 16.dp)
+                vm              = vm,
+                modifier        = Modifier.padding(horizontal = 16.dp)
             )
             Spacer(Modifier.height(10.dp))
         }
@@ -573,7 +566,6 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
                     ChipFlex("Volumen",     sessionViewTab == 1, Modifier.weight(1f)) { sessionViewTab = 1 }
                 }
                 Spacer(Modifier.height(10.dp))
-
                 Surface(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(16.dp),
@@ -594,30 +586,19 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
                                 }
                             if (bestSetPerSession.size >= 2) {
                                 BarChartGrouped(
-                                    sessionData   = bestSetPerSession,
-                                    colorReps     = Color(0xFF4ECDC4),
-                                    colorWeight   = exercise.color,
-                                    modifier      = Modifier.fillMaxWidth()
+                                    sessionData = bestSetPerSession,
+                                    colorReps   = Color(0xFF4ECDC4),
+                                    colorWeight = exercise.color,
+                                    modifier    = Modifier.fillMaxWidth()
                                 )
                             } else {
-                                Box(
-                                    Modifier.fillMaxWidth().height(80.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "Necesitas al menos 2 sesiones",
-                                        color    = TextSec,
-                                        fontSize = 12.sp
-                                    )
+                                Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                                    Text("Necesitas al menos 2 sesiones", color = TextSec, fontSize = 12.sp)
                                 }
                             }
                         } else {
                             if (volData.size >= 2) {
-                                BarChartExpanded(
-                                    data     = volData,
-                                    color    = exercise.color,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                BarChartExpanded(data = volData, color = exercise.color, modifier = Modifier.fillMaxWidth())
                             }
                         }
                     }
@@ -635,11 +616,7 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
                     color = Surface1
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        BarChartExpanded(
-                            data     = durData,
-                            color    = exercise.color,
-                            modifier = Modifier.fillMaxWidth().height(100.dp)
-                        )
+                        BarChartExpanded(data = durData, color = exercise.color, modifier = Modifier.fillMaxWidth().height(100.dp))
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -663,8 +640,12 @@ fun ExerciseDetailScreen(vm: GymViewModel, exercise: Exercise, onBack: () -> Uni
         sortedHistory.forEachIndexed { idx, (date, entries) ->
             item(key = "$date-$selectedVariant") {
                 CollapsibleHistoryEntry(
-                    date = date, entries = entries, isS = isS, isC = isC,
-                    maxWeight = maxWeight, isInitiallyExpanded = idx == 0
+                    date               = date,
+                    entries            = entries,
+                    isS                = isS,
+                    isC                = isC,
+                    maxWeight          = maxWeight,
+                    isInitiallyExpanded = idx == 0
                 )
             }
         }
@@ -755,58 +736,27 @@ fun HeroMetricCard(
         border   = BorderStroke(1.dp, exercise.color.copy(alpha = 0.25f))
     ) {
         Box {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(exercise.color, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-            )
+            Box(Modifier.fillMaxWidth().height(3.dp).background(exercise.color, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)))
             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 14.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment     = Alignment.Top
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                     Column {
                         Text(
                             if (isS) "E1RM actual" else if (isC) "Duración" else "Mejor set",
-                            fontSize = 10.sp, color = TextSec,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 0.8.sp
+                            fontSize = 10.sp, color = TextSec, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp
                         )
                         Spacer(Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                mainValue,
-                                fontSize = 40.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Accent,
-                                lineHeight = 40.sp,
-                                letterSpacing = (-1).sp
-                            )
+                            Text(mainValue, fontSize = 40.sp, fontWeight = FontWeight.Black, color = Accent, lineHeight = 40.sp, letterSpacing = (-1).sp)
                             if (!(!isS && !isC)) {
-                                Text(
-                                    mainUnit,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Accent,
-                                    modifier = Modifier.padding(bottom = 6.dp)
-                                )
+                                Text(mainUnit, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Accent, modifier = Modifier.padding(bottom = 6.dp))
                             }
                         }
                         Text(mainSublabel, fontSize = 11.sp, color = TextSec)
                     }
                     trend?.let { t ->
                         Column(horizontalAlignment = Alignment.End) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = trendColor.copy(alpha = 0.1f),
-                                border = BorderStroke(1.dp, trendColor.copy(alpha = 0.3f))
-                            ) {
-                                Column(
-                                    Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
+                            Surface(shape = RoundedCornerShape(10.dp), color = trendColor.copy(alpha = 0.1f), border = BorderStroke(1.dp, trendColor.copy(alpha = 0.3f))) {
+                                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(trendIcon, fontSize = 18.sp, color = trendColor, fontWeight = FontWeight.Black)
                                     Text(trendLabel, fontSize = 9.sp, color = trendColor, fontWeight = FontWeight.Bold)
                                 }
@@ -814,37 +764,25 @@ fun HeroMetricCard(
                             if (t.pctChange != 0f) {
                                 Spacer(Modifier.height(6.dp))
                                 val sign = if (t.pctChange > 0) "+" else ""
-                                Text(
-                                    "$sign${t.pctChange.roundToInt()}% vs 5",
-                                    fontSize = 10.sp,
-                                    color = if (t.pctChange > 0) GreenOk else RedBad,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("$sign${t.pctChange.roundToInt()}% vs 5", fontSize = 10.sp,
+                                    color = if (t.pctChange > 0) GreenOk else RedBad, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
-
                 if (sparkData.size >= 2) {
                     Spacer(Modifier.height(12.dp))
                     HeroSparkline(sparkData, exercise.color, Modifier.fillMaxWidth().height(48.dp))
                     Spacer(Modifier.height(4.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(
-                            formatDate(sparkData.first().first),
-                            fontSize = 9.sp, color = TextTert
-                        )
-                        Text(
-                            formatDate(sparkData.last().first),
-                            fontSize = 9.sp, color = TextSec, fontWeight = FontWeight.SemiBold
-                        )
+                        Text(formatDate(sparkData.first().first), fontSize = 9.sp, color = TextTert)
+                        Text(formatDate(sparkData.last().first), fontSize = 9.sp, color = TextSec, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
     }
 }
-
 
 @Composable
 fun HeroSparkline(data: List<Pair<String, Float>>, color: Color, modifier: Modifier = Modifier) {
@@ -874,13 +812,7 @@ fun HeroSparkline(data: List<Pair<String, Float>>, color: Color, modifier: Modif
             lineTo(0f, h)
             close()
         }
-        drawPath(
-            fillPath,
-            brush = Brush.verticalGradient(
-                listOf(color.copy(alpha = 0.22f), Color.Transparent),
-                startY = padV, endY = h
-            )
-        )
+        drawPath(fillPath, brush = Brush.verticalGradient(listOf(color.copy(alpha = 0.22f), Color.Transparent), startY = padV, endY = h))
 
         val linePath = Path().apply {
             moveTo(xAt(0), yAt(values[0]))
@@ -898,7 +830,6 @@ fun HeroSparkline(data: List<Pair<String, Float>>, color: Color, modifier: Modif
         drawCircle(Surface1, radius = 2f, center = Offset(lastX, lastY))
     }
 }
-
 
 @Composable
 fun CollapsibleHistoryEntry(
@@ -918,10 +849,8 @@ fun CollapsibleHistoryEntry(
     Surface(shape = RoundedCornerShape(14.dp), color = Surface1,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Column {
-            Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text(formatDate(date), fontWeight = FontWeight.SemiBold, color = TextPrim, fontSize = 13.sp)
                     if (isC) {
@@ -968,11 +897,8 @@ fun CollapsibleHistoryEntry(
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 Column(Modifier.weight(1f)) {
-                                    if (isC) {
-                                        Text("${set.reps} min", fontSize = 13.sp, color = TextPrim)
-                                    } else {
-                                        Text("${set.reps} reps", fontSize = 13.sp, color = TextPrim)
-                                    }
+                                    if (isC) Text("${set.reps} min", fontSize = 13.sp, color = TextPrim)
+                                    else     Text("${set.reps} reps", fontSize = 13.sp, color = TextPrim)
                                     if (set.variant.isNotBlank()) {
                                         Text(set.variant, fontSize = 9.sp, color = Purple, fontWeight = FontWeight.Medium)
                                     }
