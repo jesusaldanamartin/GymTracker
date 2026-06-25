@@ -1,0 +1,16 @@
+# Gradle
+.gradle/
+
+# Android build outputs
+build/
+**/build/
+
+# Local config
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# Generated files
+.generated/
